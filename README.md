@@ -1,35 +1,51 @@
-# Farmer Registry Dashboard API
+# farmer-registry-dashboard-api
 
-This is a Python FastAPI microservice that serves as the Data Layer for the Farmer Registry Dashboards.
+Read-only FastAPI service that serves aggregate chart data for the GEN2 Farmer Registry dashboard
+([oan_dashboards](https://github.com/Centre-for-Open-Societal-Systems/oan_dashboards)). It reads
+only the registry's materialized reporting views, `fr_rpt_farmer` and `fr_rpt_land`.
 
-## Architecture
-
-The API connects directly to the `farmer_registry_db` PostgreSQL database and queries the `fr_rpt_farmer` materialized view.
+**Design:** `oan_dashboards/docs/farmer-registry-dashboard-design.md` ·
+**Contributor / agent guide:** [AGENTS.md](AGENTS.md)
 
 ```mermaid
 flowchart TD
-    NextJS[OAN Dashboards Next.js BFF] -->|HTTP GET Request| Router[FastAPI Router]
-    Router -->|Parse Query Params| WhereClause[Dynamic WHERE Builder]
-    WhereClause -->|Parameterized SQL| Asyncpg[asyncpg Connection Pool]
-    Asyncpg -->|Fetch Data| PG[(PostgreSQL: fr_rpt_farmer)]
+    BFF[oan_dashboards BFF<br/>15-min cache] -->|GET /api/v1/charts/*| Router[FastAPI router]
+    Router --> Where[build_where_clause<br/>asyncpg $n params]
+    Where --> PG[(farmer_registry_db<br/>fr_rpt_farmer / fr_rpt_land)]
 ```
 
-### Endpoints
-All endpoints reside under `/api/v1/charts/` and support optional query parameters: `region`, `zone`, `woreda`, `kebele`, `farmingType`, and `recordState`.
+## Endpoints
 
-- `/farmerKpis`: Aggregated totals, gender splits, and land size.
-- `/farmersByRegion`, `/farmersByGender`, `/farmersByType`, `/farmersByAgeAndGender`, `/farmersByEducation`: Demographic distributions.
-- `/landTenureSplit`: Parcel sizes grouped by ownership.
-- `/registryTrendByMonth`: Timeseries data based on `registration_date`.
-- `/registryCoverage`: Count of distinct Woredas covered.
+`GET /api/v1/charts/<chartId>` returns a JSON array of rows. Every chart accepts `region`, `zone`,
+`woreda`, `kebele` (bare code or full level value id), `farmingType` and `recordState`. Without
+`recordState`, only `ACTIVE` records are counted.
+
+| Chart | Rows |
+| --- | --- |
+| `farmerKpis` | totals, gender split, land size, owned land |
+| `farmersByRegion`, `farmersByGender`, `farmersByType`, `farmersByAgeAndGender`, `farmersByEducation`, `farmersByRecordState` | distributions |
+| `landTenureSplit` | parcels and hectares by tenure (per parcel) |
+| `registryTrendByMonth` | farmers, total and owned area per `YYYY-MM` |
+| `registryCoverage` | covered units per level; totals from `GEO_LEVEL_TOTALS` |
+| `farmersByPsnpStatus`, `farmersByImportStatus` | `[]` (not in GEN2 yet) |
+
+`GET /health` runs `SELECT 1`.
+
+## Configuration
+
+See `.env.example`: `DATABASE_URL` (required), `ALLOWED_ORIGINS`, `GEO_LEVEL_TOTALS`, `API_V1_STR`.
 
 ## Security
-- **CORS Configuration**: The API strictly allows origins defined in the `ALLOWED_ORIGINS` environment variable (defaults to `http://localhost:3000`).
-- **SQL Injection Prevention**: The application heavily utilizes `asyncpg` parameterized queries (`$1`, `$2`) to safely inject filter variables into the SQL strings. No direct string interpolation is performed on user inputs.
+
+- Every filter value is bound as an asyncpg parameter; there is no string interpolation of input.
+- There is no authentication. Expose the service only to the dashboard BFF, never publicly.
 
 ## Development
-To run this microservice locally (inside the `farmer-registry-coss-v3` network):
+
 ```bash
-docker-compose build farmer-registry-dashboard-api
-docker-compose up -d farmer-registry-dashboard-api
+make dev                       # uvicorn --reload on :8005
+docker compose up -d --build   # container on :8005
+pip install -r requirements-dev.txt
+make test                      # pytest against a throw-away schema (TEST_DATABASE_URL)
+make lint
 ```
