@@ -5,8 +5,8 @@ never against the registry's data: each test gets a throw-away schema holding
 small fr_rpt_* tables, and the pool's search_path points at it. The schema is
 dropped afterwards.
 
-TEST_DATABASE_URL picks the server; it defaults to the local
-farmer-registry-v3 Postgres published on localhost:5432.
+TEST_DATABASE_URL picks the server; it defaults to a local Postgres on
+localhost:5432.
 """
 
 import os
