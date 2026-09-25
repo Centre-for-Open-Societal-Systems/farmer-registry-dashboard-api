@@ -17,6 +17,10 @@ CONTRACT = {
         "farmers_without_id",
     },
     "farmersByRegion": {"region", "region_code", "farmers"},
+    "farmersByZone": {"zone", "zone_code", "farmers"},
+    "farmersByWoreda": {"woreda", "woreda_code", "farmers"},
+    "farmersByKebele": {"kebele", "kebele_code", "farmers"},
+    "farmersByFarmerId": {"id_status", "farmers"},
     "farmersByGender": {"gender", "farmers"},
     "farmersByType": {"farming_type", "farmers"},
     "farmersByAgeAndGender": {"age_group", "gender", "farmers"},
@@ -73,6 +77,7 @@ async def test_kpis_count_active_by_default(client):
     assert kpis["female_farmers"] == 1
     assert kpis["male_farmers"] == 2
     assert kpis["total_land_size"] == pytest.approx(5.0)
+    assert (kpis["farmers_with_id"], kpis["farmers_without_id"]) == (2, 1)
     # Numbers, not Decimal-as-string.
     assert isinstance(kpis["avg_farm_size"], float)
 
@@ -113,6 +118,38 @@ async def test_tenure_is_per_parcel(client):
     # f1's 2 ha split across OWNER and TENANT rather than all going to one bucket;
     # l4 is INACTIVE.
     assert by_tenure == {"OWNER": (1, 1.5), "TENANT": (1, 0.5), "CROP_SHARE": (1, 3.0)}
+
+
+@pytest.mark.parametrize(
+    ("chart", "key", "expected"),
+    [
+        ("farmersByZone", "zone_code", {"ET0413": 1, "ET0403": 1, "ET0603": 1}),
+        ("farmersByWoreda", "woreda_code", {"ET041301": 1, "ET040324": 1, "ET060309": 1}),
+        ("farmersByKebele", "kebele_code", {"ET041301301001": 1, "ET040308888007": 1, "ET060103888064": 1}),
+    ],
+)
+async def test_geo_breakdowns_use_bare_codes(client, chart, key, expected):
+    rows = await get(client, chart)
+    assert {r[key]: r["farmers"] for r in rows} == expected
+
+
+async def test_geo_breakdown_respects_parent_filter(client):
+    rows = await get(client, "farmersByWoreda", region="ET04")
+    assert {r["woreda_code"] for r in rows} == {"ET041301", "ET040324"}
+
+
+async def test_farmer_id_split(client):
+    rows = await get(client, "farmersByFarmerId")
+    # f4 has no functional record id; f3 is INACTIVE.
+    assert {r["id_status"]: r["farmers"] for r in rows} == {"With Farmer ID": 2, "Without Farmer ID": 1}
+
+
+async def test_tenure_follows_the_owning_farmers_geography(client):
+    # l1 lies in ET06 but belongs to f1 in ET04, so it counts under ET04.
+    rows = await get(client, "landTenureSplit", region="ET04")
+    assert {r["ownership_type"]: r["parcels"] for r in rows} == {"OWNER": 1, "TENANT": 1, "CROP_SHARE": 1}
+    # ET06's only farmer with land (f3) is INACTIVE, and l1 is not f3's.
+    assert await get(client, "landTenureSplit", region="ET06") == []
 
 
 async def test_age_bands_are_the_view_policy_bands(client):

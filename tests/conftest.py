@@ -36,9 +36,11 @@ GEO = {
 SCHEMA_SQL = """
 CREATE TABLE fr_rpt_farmer (
     farmer_id varchar PRIMARY KEY,
+    functional_record_id varchar,
     record_status varchar,
     registration_date date,
-    geo_1 text, geo_1_id text, geo_2_id text, geo_3_id text, geo_4_id text,
+    geo_1 text, geo_2 text, geo_3 text, geo_4 text,
+    geo_1_id text, geo_2_id text, geo_3_id text, geo_4_id text,
     gender varchar,
     age_band text,
     education_level varchar,
@@ -67,8 +69,10 @@ FARMERS = [
 ]
 
 # land_id, farmer_id, status, geo, farming type, tenure, owner operated, ha
+# l1 lies outside its owner's region on purpose: charts filter land by the
+# owning farmer's geography, not the parcel's.
 LANDS = [
-    ("l1", "f1", "ACTIVE", "ET04a", "CROP", "OWNER", True, 1.5),
+    ("l1", "f1", "ACTIVE", "ET06", "CROP", "OWNER", True, 1.5),
     ("l2", "f1", "ACTIVE", "ET04a", "CROP", "TENANT", False, 0.5),
     ("l3", "f2", "ACTIVE", "ET04b", "LIVESTOCK", "CROP_SHARE", False, 3.0),
     ("l4", "f3", "INACTIVE", "ET06", "CROP", "OWNER", True, 1.0),
@@ -80,11 +84,16 @@ async def _seed(conn: asyncpg.Connection) -> None:
     for fid, status, reg, geo, gender, band, edu, ftype, ha, owns in FARMERS:
         g = GEO[geo]
         await conn.execute(
-            "INSERT INTO fr_rpt_farmer VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+            """INSERT INTO fr_rpt_farmer (
+                   farmer_id, functional_record_id, record_status, registration_date,
+                   geo_1, geo_2, geo_3, geo_4, geo_1_id, geo_2_id, geo_3_id, geo_4_id,
+                   gender, age_band, education_level, main_farming_type, total_land_ha, owns_any_parcel)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)""",
             fid,
+            None if fid == "f4" else f"FR-{fid}",
             status,
             reg and date.fromisoformat(reg),
-            g[0].split("-")[1],
+            *(f"{unit} name" for unit in g),
             *g,
             gender,
             band,

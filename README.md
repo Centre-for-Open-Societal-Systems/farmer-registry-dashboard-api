@@ -33,6 +33,8 @@ Interactive OpenAPI docs are served at `http://localhost:8005/docs`.
 | `GET /health` | Liveness and database connectivity |
 | `GET /api/v1/charts/farmerKpis` | Headline totals: farmers, gender split, land area, owned land |
 | `GET /api/v1/charts/farmersByRegion` | Farmers per top-level administrative unit |
+| `GET /api/v1/charts/farmersByZone`, `farmersByWoreda`, `farmersByKebele` | Farmers per unit at levels 2–4, for map drill-down |
+| `GET /api/v1/charts/farmersByFarmerId` | Farmers with and without a farmer ID |
 | `GET /api/v1/charts/farmersByGender` | Farmers per gender |
 | `GET /api/v1/charts/farmersByType` | Farmers per main farming type |
 | `GET /api/v1/charts/farmersByAgeAndGender` | Farmers per age band and gender |

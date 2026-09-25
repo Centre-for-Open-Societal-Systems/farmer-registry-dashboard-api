@@ -40,7 +40,7 @@ leaving the parameter out.
 | `zone` | string | second level (`geo_2_id`) | as above |
 | `woreda` | string | third level (`geo_3_id`) | as above |
 | `kebele` | string | fourth level (`geo_4_id`) | as above |
-| `farmingType` | string | the farmer's main farming type (`fr_rpt_farmer`) or the parcel's farming type (`fr_rpt_land`) | Case-insensitive, for example `crop`, `LIVESTOCK`, `mixed` |
+| `farmingType` | string | the farmer's main farming type | Case-insensitive, for example `crop`, `LIVESTOCK`, `mixed` |
 | `recordState` | string | `record_status` | Case-insensitive. **If omitted, only `ACTIVE` records are counted**, except in `farmersByRecordState` |
 
 The filters combine with AND. Geographic filters do not have to be consistent with each other, but a
@@ -76,13 +76,13 @@ Headline figures over the filtered farmers. Returns one object.
 | `avg_farm_size` | number | Average `total_land_ha` per farmer, in hectares |
 | `farmers_with_owned_land` | integer | Farmers with at least one owner-operated parcel |
 | `household_heads` | integer | Always `0` (not available in the reporting views) |
-| `farmers_with_id` | integer | Always `0` (not available) |
-| `farmers_without_id` | integer | Always `0` (not available) |
+| `farmers_with_id` | integer | Farmers with a farmer ID (registry functional record id) |
+| `farmers_without_id` | integer | Farmers without one |
 
 ```json
 [{"total_farmers": 195, "female_farmers": 93, "male_farmers": 100,
   "total_land_size": 542.41933, "avg_farm_size": 4.2376, "farmers_with_owned_land": 61,
-  "household_heads": 0, "farmers_with_id": 0, "farmers_without_id": 0}]
+  "household_heads": 0, "farmers_with_id": 195, "farmers_without_id": 0}]
 ```
 
 ---
@@ -100,6 +100,40 @@ Farmers per top-level administrative unit, largest first.
 ```json
 [{"region": "Oromia", "region_code": "ET04", "farmers": 195}]
 ```
+
+---
+
+### `GET /api/v1/charts/farmersByZone`, `farmersByWoreda`, `farmersByKebele`
+
+Farmers per unit at hierarchy levels 2, 3 and 4, largest first. Combine with the parent filters to
+drill down, for example `farmersByWoreda?region=ET04&zone=ET0410` for the woredas of one zone.
+
+| Chart | Fields |
+| --- | --- |
+| `farmersByZone` | `zone` (name), `zone_code`, `farmers` |
+| `farmersByWoreda` | `woreda`, `woreda_code`, `farmers` |
+| `farmersByKebele` | `kebele`, `kebele_code`, `farmers` |
+
+Codes are returned without the level prefix (for example `ET0410`, `ET041016`) and match standard
+administrative P-codes, so they join directly to map boundaries. A few units whose hierarchy skips a
+level in the registry (for example special woredas directly under a region) appear at the level
+their position implies.
+
+```json
+[{"woreda": "Girawa", "woreda_code": "ET041016", "farmers": 3},
+ {"woreda": "Meta", "woreda_code": "ET041009", "farmers": 2}]
+```
+
+---
+
+### `GET /api/v1/charts/farmersByFarmerId`
+
+Farmers with and without a farmer ID (the registry's functional record id).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id_status` | string | `With Farmer ID` or `Without Farmer ID` |
+| `farmers` | integer | Farmers |
 
 ---
 
@@ -162,8 +196,10 @@ covers every status unless `recordState` is given.
 
 ### `GET /api/v1/charts/landTenureSplit`
 
-Parcels and area per tenure type, computed **per parcel** from `fr_rpt_land`. `farmingType` filters
-on the parcel's farming type, and `recordState` on the parcel's status.
+Parcels and area per tenure type, computed **per parcel** from `fr_rpt_land`, for the land held by
+the farmers that match the filters. All filters apply to the **owning farmer** (geography, farming
+type, record status), as in every other chart. A parcel located outside its owner's area is still
+counted under the owner's area. Only active parcels are counted.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

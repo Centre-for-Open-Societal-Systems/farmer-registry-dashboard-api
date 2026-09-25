@@ -37,26 +37,68 @@ async def get_farmer_kpis(filters: ChartFilters = Depends(), pool: asyncpg.Pool 
             COALESCE(AVG(total_land_ha), 0)::float8                  AS avg_farm_size,
             0                                                        AS household_heads,
             COUNT(*) FILTER (WHERE owns_any_parcel)::bigint          AS farmers_with_owned_land,
-            0                                                        AS farmers_with_id,
-            0                                                        AS farmers_without_id
+            COUNT(*) FILTER (WHERE NULLIF(TRIM(functional_record_id), '') IS NOT NULL)::bigint AS farmers_with_id,
+            COUNT(*) FILTER (WHERE NULLIF(TRIM(functional_record_id), '') IS NULL)::bigint     AS farmers_without_id
         FROM fr_rpt_farmer
         {where.sql}
     """
     return await fetch(pool, query, where)
 
 
-@router.get("/farmersByRegion", response_model=Rows)
-async def get_farmers_by_region(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+async def farmers_by_geo_level(pool: asyncpg.Pool, filters: ChartFilters, level: int, name: str) -> Rows:
+    """Farmers per administrative unit at hierarchy position `level` (1-4).
+
+    `<name>_code` is the unit's code without its level prefix (region-ET04 ->
+    ET04), which is what map boundaries are keyed on. `level` and `name` come
+    from the fixed handlers below, never from the request.
+    """
     where = build_where_clause(filters)
     query = f"""
         SELECT
-            COALESCE(geo_1, 'Unknown')                                          AS region,
-            COALESCE(substr(geo_1_id, strpos(geo_1_id, '-') + 1), 'Unknown')   AS region_code,
-            COUNT(*)::bigint                                                    AS farmers
+            COALESCE(geo_{level}, 'Unknown')                                                  AS {name},
+            COALESCE(substr(geo_{level}_id, strpos(geo_{level}_id, '-') + 1), 'Unknown')    AS {name}_code,
+            COUNT(*)::bigint                                                                  AS farmers
         FROM fr_rpt_farmer
         {where.sql}
         GROUP BY 1, 2
         ORDER BY farmers DESC
+    """
+    return await fetch(pool, query, where)
+
+
+@router.get("/farmersByRegion", response_model=Rows)
+async def get_farmers_by_region(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    return await farmers_by_geo_level(pool, filters, 1, "region")
+
+
+@router.get("/farmersByZone", response_model=Rows)
+async def get_farmers_by_zone(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    return await farmers_by_geo_level(pool, filters, 2, "zone")
+
+
+@router.get("/farmersByWoreda", response_model=Rows)
+async def get_farmers_by_woreda(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    return await farmers_by_geo_level(pool, filters, 3, "woreda")
+
+
+@router.get("/farmersByKebele", response_model=Rows)
+async def get_farmers_by_kebele(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    return await farmers_by_geo_level(pool, filters, 4, "kebele")
+
+
+@router.get("/farmersByFarmerId", response_model=Rows)
+async def get_farmers_by_farmer_id(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    # The registry's functional record id is the farmer ID issued at registration.
+    where = build_where_clause(filters)
+    query = f"""
+        SELECT
+            CASE WHEN NULLIF(TRIM(functional_record_id), '') IS NOT NULL
+                 THEN 'With Farmer ID' ELSE 'Without Farmer ID' END  AS id_status,
+            COUNT(*)::bigint                                        AS farmers
+        FROM fr_rpt_farmer
+        {where.sql}
+        GROUP BY 1
+        ORDER BY 1
     """
     return await fetch(pool, query, where)
 
@@ -125,16 +167,20 @@ async def get_farmers_by_education(filters: ChartFilters = Depends(), pool: asyn
 
 @router.get("/landTenureSplit", response_model=Rows)
 async def get_land_tenure_split(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
-    # Tenure is a parcel attribute, so this must be per parcel (fr_rpt_land):
+    # Tenure is a parcel attribute, so this is counted per parcel (fr_rpt_land):
     # rolling area up to the farmer first would put all of a farmer's hectares
-    # under their largest parcel's tenure.
-    where = build_where_clause(filters, view="land")
+    # under their largest parcel's tenure. The filters select the parcels' OWNERS
+    # (geography, farming type, record status of the farmer), like every other
+    # chart: "land held by the farmers in this area". A parcel's own location can
+    # differ from its owner's.
+    where = build_where_clause(filters, alias="f", extra=("l.record_status = 'ACTIVE'",))
     query = f"""
         SELECT
-            COALESCE(land_ownership_type, 'UNKNOWN')   AS ownership_type,
-            COUNT(*)::bigint                            AS parcels,
-            COALESCE(SUM(land_size_ha), 0)::float8      AS area
-        FROM fr_rpt_land
+            COALESCE(l.land_ownership_type, 'UNKNOWN')   AS ownership_type,
+            COUNT(*)::bigint                              AS parcels,
+            COALESCE(SUM(l.land_size_ha), 0)::float8      AS area
+        FROM fr_rpt_land l
+        JOIN fr_rpt_farmer f ON f.farmer_id = l.farmer_id
         {where.sql}
         GROUP BY 1
         ORDER BY parcels DESC

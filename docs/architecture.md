@@ -82,7 +82,7 @@ This view carries the parcel's tenure (`land_ownership_type`), use, farming type
 | --- | --- | --- |
 | How many farmers …? | `fr_rpt_farmer` | One row per farmer, so `COUNT(*)` is a head count |
 | How much land, by a farmer attribute (gender, region, …)? | `fr_rpt_farmer` (`total_land_ha`) | The area is already summed per farmer |
-| How much land, by a parcel attribute (tenure, land use)? | `fr_rpt_land` | A farmer's parcels can differ. Grouping farmer totals by one parcel's attribute misattributes area |
+| How much land, by a parcel attribute (tenure, land use)? | `fr_rpt_land`, joined to `fr_rpt_farmer` | A farmer's parcels can differ. Grouping farmer totals by one parcel's attribute misattributes area. The join applies the filters to the owning farmer, so "in this zone" means the same thing on every chart |
 
 ### Freshness
 
@@ -120,8 +120,7 @@ tests/                    pytest suite (contract, behaviour, filters, injection)
 
 ## Limitations
 
-- `farmerKpis.household_heads`, `farmers_with_id` and `farmers_without_id` are always `0`. The
-  reporting views do not carry that information yet.
+- `farmerKpis.household_heads` is always `0`. The reporting views do not carry that information yet.
 - `farmersByPsnpStatus` and `farmersByImportStatus` return `[]`. The registry has no equivalent
   concept yet. They are kept so the dashboard's request shape stays stable.
 - Coverage totals (the national number of units per level) are configuration, not data, because the

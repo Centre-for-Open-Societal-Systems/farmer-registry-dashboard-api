@@ -23,8 +23,10 @@ docs/                     architecture, API reference, configuration, developmen
 
 ### Data access
 - Query **only** `fr_rpt_farmer` and `fr_rpt_land`. Never query the `g2p_register_*` tables.
-- Group by a parcel attribute (tenure, land use, parcel farming type) only on `fr_rpt_land`, and pass
-  `view="land"`.
+- Group by a parcel attribute (tenure, land use) only on `fr_rpt_land`, joined to `fr_rpt_farmer`
+  with `build_where_clause(filters, alias="f")`. Filters always select the **owning farmer**, so
+  "in this zone" means the same thing on every chart, even where a parcel lies outside its owner's
+  area.
 - Aggregate area from `*_ha` columns only.
 - `build_where_clause` counts `ACTIVE` records unless `recordState` is given. Pass
   `default_active=False` only for a breakdown by status.
