@@ -13,6 +13,7 @@ endpoint per dashboard chart. Its only client is the OAN dashboards BFF, which c
 ```
 app/main.py               app, lifespan (asyncpg pool), CORS, /health
 app/core/config.py        settings (DATABASE_URL, ALLOWED_ORIGINS, GEO_LEVEL_TOTALS, …)
+app/core/geo.py           which geo_N column holds each dashboard level (region, zone, woreda, kebele)
 app/api/filters.py        ChartFilters + build_where_clause: the only place input becomes SQL
 app/api/routes/charts.py  chart handlers
 tests/                    pytest suite against a throw-away schema
@@ -28,6 +29,8 @@ docs/                     architecture, API reference, configuration, developmen
   "in this zone" means the same thing on every chart, even where a parcel lies outside its owner's
   area.
 - Aggregate area from `*_ha` columns only.
+- Never write `geo_1` … `geo_5` in a query. Use `geo.column("region")` (id) or
+  `geo.column("region", "")` (name): a pack with a country root shifts every level by one.
 - `build_where_clause` counts `ACTIVE` records unless `recordState` is given. Pass
   `default_active=False` only for a breakdown by status.
 - Return codes (`FEMALE`, `UNDER_25`, `OWNER`), not display labels, and do not re-bucket policy

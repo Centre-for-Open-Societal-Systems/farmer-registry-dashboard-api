@@ -3,16 +3,9 @@ from typing import Literal
 
 from fastapi import Query
 
-View = Literal["farmer", "land"]
+from app.core import geo
 
-# Geography filters, outermost level first. The reporting views unpack the
-# hierarchy by position, so geo_1 is whatever the deployment's top level is.
-GEO_FILTERS = (
-    ("region", "geo_1_id"),
-    ("zone", "geo_2_id"),
-    ("woreda", "geo_3_id"),
-    ("kebele", "geo_4_id"),
-)
+View = Literal["farmer", "land"]
 
 # Attribute columns that differ between the per-farmer and per-parcel views.
 FARMING_TYPE_COLUMN: dict[str, str] = {
@@ -79,10 +72,11 @@ def build_where_clause(
         values.append(value)
         return f"${len(values)}"
 
-    for param, column in GEO_FILTERS:
+    # Geography: each dashboard level's reporting-view column (see app/core/geo.py).
+    for param in geo.LEVELS:
         value = getattr(filters, param)
         if _given(value):
-            col = f"{prefix}{column}"
+            col = f"{prefix}{geo.column(param)}"
             # Level value ids look like '<level>-<code>' (region-ET04). Accept
             # either the full id or the bare code without hard-coding level names.
             p = bind(value)

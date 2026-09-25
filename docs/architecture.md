@@ -113,7 +113,7 @@ tests/                    pytest suite (contract, behaviour, filters, injection)
 | One endpoint per chart, returning chart-shaped rows | Keeps the client simple and lets each query be written and indexed for its one purpose. The response keys are a stable contract (see the [API reference](api-reference.md)) |
 | All filtering through `build_where_clause` | The one place that turns user input into SQL. Every value is bound as a parameter, and fixed predicates are passed in rather than concatenated |
 | Count `ACTIVE` records by default | Matches what the registry treats as a live farmer. Callers can ask for another status explicitly |
-| Geography matched by position and code, not level name | Works for any country's hierarchy without code changes |
+| Geography matched by position and code, not level name | Works for any country's hierarchy without code changes. The first dashboard level is the first position in `fr_rpt_geo_levels` that is not a country root, resolved once per process (`app/core/geo.py`) |
 | No authentication; network isolation instead | The only client is a server-side BFF on the same private network. See [Security](security.md) |
 | No caching in the service | The BFF caches per chart and filter combination. Caching here as well would add staleness without reducing load |
 | asyncpg with one pool per worker | Fast, native parameter binding, and no cross-process state |

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # is configured rather than derived. Keys: regions, zones, woredas, kebeles.
     # A level left out is reported as null.
     GEO_LEVEL_TOTALS: dict[str, int] = {}
+    # Reporting-view position (1-2) of the dashboards' first geography level, the
+    # region. Unset: derived from fr_rpt_geo_levels, skipping a country root
+    # (see app/core/geo.py). Set it only to override that.
+    GEO_TOP_LEVEL: int | None = None
 
 
 settings = Settings()
