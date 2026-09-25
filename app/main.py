@@ -1,9 +1,13 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+
 import asyncpg
-from app.core.config import settings
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.dependencies import get_db_pool
 from app.api.routes.router import api_router
+from app.core.config import settings
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -13,10 +17,8 @@ async def lifespan(app: FastAPI):
     # Clean up the pool on shutdown
     await app.state.pool.close()
 
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    lifespan=lifespan
-)
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 # CORS configuration
 app.add_middleware(
@@ -26,6 +28,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+async def health(pool: asyncpg.Pool = Depends(get_db_pool)):
+    async with pool.acquire() as conn:
+        await conn.fetchval("SELECT 1")
+    return {"status": "ok"}
+
 
 # Include the main API router
 app.include_router(api_router, prefix=settings.API_V1_STR)

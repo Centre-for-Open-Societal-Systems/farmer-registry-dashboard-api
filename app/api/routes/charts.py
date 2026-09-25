@@ -1,295 +1,213 @@
-from fastapi import APIRouter, Depends, Query
+"""Chart endpoints for the GEN2 farmer registry dashboard.
+
+Each endpoint returns a JSON array of row objects whose keys match what the
+oan_dashboards components read (the legacy chart SQL shapes). Read only from
+the fr_rpt_* reporting views; see AGENTS.md for the rules.
+"""
+
+from typing import Any
+
 import asyncpg
-from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Depends
+
 from app.api.dependencies import get_db_pool
+from app.api.filters import ChartFilters, Where, build_where_clause
+from app.core.config import settings
 
 router = APIRouter()
 
-def build_where_clause(region, zone, woreda, kebele, farmingType, recordState):
-    conditions = []
-    values = []
-    idx = 1
-    if region and region != 'all':
-        conditions.append(f"geo_1_id = 'region-' || ${idx}")
-        values.append(region)
-        idx += 1
-    if zone and zone != 'all':
-        conditions.append(f"geo_2_id = 'zone-' || ${idx}")
-        values.append(zone)
-        idx += 1
-    if woreda and woreda != 'all':
-        conditions.append(f"geo_3_id = 'woreda-' || ${idx}")
-        values.append(woreda)
-        idx += 1
-    if kebele and kebele != 'all':
-        conditions.append(f"geo_4_id = 'kebele-' || ${idx}")
-        values.append(kebele)
-        idx += 1
-    if farmingType and farmingType != 'all':
-        conditions.append(f"LOWER(main_farming_type) = LOWER(${idx})")
-        values.append(farmingType)
-        idx += 1
-    if recordState and recordState != 'all':
-        conditions.append(f"LOWER(record_status) = LOWER(${idx})")
-        values.append(recordState)
-        idx += 1
-    
-    where = ""
-    if conditions:
-        where = "WHERE " + " AND ".join(conditions)
-    return where, values
+Rows = list[dict[str, Any]]
 
-@router.get("/farmerKpis", response_model=List[Dict[str, Any]])
-async def get_farmer_kpis(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
-    query = f"""
-        SELECT
-            COUNT(DISTINCT farmer_id) AS total_farmers,
-            SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) AS female_farmers,
-            SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) AS male_farmers,
-            COALESCE(SUM(total_land_ha), 0) AS total_land_size,
-            COALESCE(AVG(total_land_ha), 0) AS avg_farm_size,
-            0 AS household_heads,
-            SUM(CASE WHEN owns_any_parcel THEN 1 ELSE 0 END) AS farmers_with_owned_land,
-            0 AS farmers_with_id,
-            0 AS farmers_without_id
-        FROM fr_rpt_farmer
-        {where}
-    """
+
+async def fetch(pool: asyncpg.Pool, query: str, where: Where) -> Rows:
     async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
+        records = await conn.fetch(query, *where.values)
     return [dict(r) for r in records]
 
-@router.get("/farmersByRegion", response_model=List[Dict[str, Any]])
-async def get_farmers_by_region(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/farmerKpis", response_model=Rows)
+async def get_farmer_kpis(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
     query = f"""
         SELECT
-            COALESCE(geo_1, 'Unknown') as region,
-            COALESCE(REPLACE(geo_1_id, 'region-', ''), 'Unknown') as region_code,
-            COUNT(DISTINCT farmer_id) as farmers
+            COUNT(*)::bigint                                         AS total_farmers,
+            COUNT(*) FILTER (WHERE UPPER(gender) = 'FEMALE')::bigint AS female_farmers,
+            COUNT(*) FILTER (WHERE UPPER(gender) = 'MALE')::bigint   AS male_farmers,
+            COALESCE(SUM(total_land_ha), 0)::float8                  AS total_land_size,
+            COALESCE(AVG(total_land_ha), 0)::float8                  AS avg_farm_size,
+            0                                                        AS household_heads,
+            COUNT(*) FILTER (WHERE owns_any_parcel)::bigint          AS farmers_with_owned_land,
+            0                                                        AS farmers_with_id,
+            0                                                        AS farmers_without_id
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
+    """
+    return await fetch(pool, query, where)
+
+
+@router.get("/farmersByRegion", response_model=Rows)
+async def get_farmers_by_region(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
+    query = f"""
+        SELECT
+            COALESCE(geo_1, 'Unknown')                                          AS region,
+            COALESCE(substr(geo_1_id, strpos(geo_1_id, '-') + 1), 'Unknown')   AS region_code,
+            COUNT(*)::bigint                                                    AS farmers
+        FROM fr_rpt_farmer
+        {where.sql}
         GROUP BY 1, 2
         ORDER BY farmers DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/farmersByGender", response_model=List[Dict[str, Any]])
-async def get_farmers_by_gender(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/farmersByGender", response_model=Rows)
+async def get_farmers_by_gender(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
     query = f"""
-        SELECT
-            COALESCE(gender, 'Unknown') as gender,
-            COUNT(DISTINCT farmer_id) as farmers
+        SELECT COALESCE(gender, 'Unknown') AS gender, COUNT(*)::bigint AS farmers
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
         GROUP BY 1
         ORDER BY farmers DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/farmersByType", response_model=List[Dict[str, Any]])
-async def get_farmers_by_type(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/farmersByType", response_model=Rows)
+async def get_farmers_by_type(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
     query = f"""
-        SELECT
-            COALESCE(main_farming_type, 'Unknown') as farming_type,
-            COUNT(DISTINCT farmer_id) as farmers
+        SELECT COALESCE(main_farming_type, 'Unknown') AS farming_type, COUNT(*)::bigint AS farmers
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
         GROUP BY 1
         ORDER BY farmers DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/farmersByAgeAndGender", response_model=List[Dict[str, Any]])
-async def get_farmers_by_age_and_gender(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/farmersByAgeAndGender", response_model=Rows)
+async def get_farmers_by_age_and_gender(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    # age_band is policy defined in the registry's reporting.yaml
+    # (UNDER_25, 25_34, 35_49, 50_64, 65_PLUS, UNKNOWN); the UI labels it.
+    where = build_where_clause(filters)
     query = f"""
         SELECT
-            COALESCE(age_band, 'Unknown') as age_group,
-            COALESCE(gender, 'Unknown') as gender,
-            COUNT(DISTINCT farmer_id) as farmers
+            COALESCE(age_band, 'UNKNOWN')  AS age_group,
+            COALESCE(gender, 'Unknown')    AS gender,
+            COUNT(*)::bigint               AS farmers
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
         GROUP BY 1, 2
-        ORDER BY age_group, gender
+        ORDER BY
+            CASE COALESCE(age_band, 'UNKNOWN')
+                WHEN 'UNDER_25' THEN 1 WHEN '25_34' THEN 2 WHEN '35_49' THEN 3
+                WHEN '50_64' THEN 4 WHEN '65_PLUS' THEN 5 ELSE 6
+            END,
+            gender
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/farmersByEducation", response_model=List[Dict[str, Any]])
-async def get_farmers_by_education(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/farmersByEducation", response_model=Rows)
+async def get_farmers_by_education(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
     query = f"""
-        SELECT
-            COALESCE(education_level, 'Unknown') as education,
-            COUNT(DISTINCT farmer_id) as farmers
+        SELECT COALESCE(education_level, 'Unknown') AS education, COUNT(*)::bigint AS farmers
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
         GROUP BY 1
         ORDER BY farmers DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/landTenureSplit", response_model=List[Dict[str, Any]])
-async def get_land_tenure_split(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/landTenureSplit", response_model=Rows)
+async def get_land_tenure_split(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    # Tenure is a parcel attribute, so this must be per parcel (fr_rpt_land):
+    # rolling area up to the farmer first would put all of a farmer's hectares
+    # under their largest parcel's tenure.
+    where = build_where_clause(filters, view="land")
     query = f"""
         SELECT
-            COALESCE(main_tenure, 'Unknown') as ownership_type,
-            SUM(parcel_count) as parcels,
-            SUM(total_land_ha) as area
-        FROM fr_rpt_farmer
-        {where}
+            COALESCE(land_ownership_type, 'UNKNOWN')   AS ownership_type,
+            COUNT(*)::bigint                            AS parcels,
+            COALESCE(SUM(land_size_ha), 0)::float8      AS area
+        FROM fr_rpt_land
+        {where.sql}
         GROUP BY 1
         ORDER BY parcels DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/registryTrendByMonth", response_model=List[Dict[str, Any]])
-async def get_registry_trend_by_month(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+
+@router.get("/registryTrendByMonth", response_model=Rows)
+async def get_registry_trend_by_month(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters, alias="f", extra=("f.registration_date IS NOT NULL",))
     query = f"""
+        WITH owned AS (
+            SELECT farmer_id, SUM(land_size_ha) AS owned_ha
+            FROM fr_rpt_land
+            WHERE is_owner_operated AND record_status = 'ACTIVE'
+            GROUP BY farmer_id
+        )
         SELECT
-            DATE_TRUNC('month', registration_date) as period,
-            COUNT(DISTINCT farmer_id) as farmers,
-            SUM(total_land_ha) as total_area,
-            AVG(total_land_ha) as avg_area
-        FROM fr_rpt_farmer
-        {where} AND registration_date IS NOT NULL
+            TO_CHAR(DATE_TRUNC('month', f.registration_date), 'YYYY-MM') AS period,
+            COUNT(*)::bigint                                              AS farmers,
+            COALESCE(SUM(f.total_land_ha), 0)::float8                     AS total_area,
+            COALESCE(SUM(o.owned_ha), 0)::float8                          AS owned_area
+        FROM fr_rpt_farmer f
+        LEFT JOIN owned o ON o.farmer_id = f.farmer_id
+        {where.sql}
         GROUP BY 1
         ORDER BY 1
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/registryCoverage", response_model=List[Dict[str, Any]])
-async def get_registry_coverage(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
-    query = f"""
-        SELECT COUNT(DISTINCT geo_3_id) as covered_woredas
-        FROM fr_rpt_farmer
-        {where}
-    """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-        covered = records[0]['covered_woredas'] if records else 0
-    return [{"woredas_total": 1138, "woredas_covered": covered}]
 
-@router.get("/farmersByPsnpStatus", response_model=List[Dict[str, Any]])
-async def get_farmers_by_psnp_status():
-    return []
-
-@router.get("/farmersByRecordState", response_model=List[Dict[str, Any]])
-async def get_farmers_by_record_state(
-    region: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    woreda: Optional[str] = Query(None),
-    kebele: Optional[str] = Query(None),
-    farmingType: Optional[str] = Query(None),
-    recordState: Optional[str] = Query(None),
-    pool: asyncpg.Pool = Depends(get_db_pool)
-):
-    where, values = build_where_clause(region, zone, woreda, kebele, farmingType, recordState)
+@router.get("/registryCoverage", response_model=Rows)
+async def get_registry_coverage(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    where = build_where_clause(filters)
     query = f"""
         SELECT
-            COALESCE(record_status, 'Unknown') as record_state,
-            COUNT(DISTINCT farmer_id) as farmers
+            COUNT(DISTINCT geo_1_id)::bigint AS regions_covered,
+            COUNT(DISTINCT geo_2_id)::bigint AS zones_covered,
+            COUNT(DISTINCT geo_3_id)::bigint AS woredas_covered,
+            COUNT(DISTINCT geo_4_id)::bigint AS kebeles_covered
         FROM fr_rpt_farmer
-        {where}
+        {where.sql}
+    """
+    rows = await fetch(pool, query, where)
+    covered = rows[0] if rows else {}
+    totals = settings.GEO_LEVEL_TOTALS
+    result: dict[str, Any] = {}
+    for level in ("regions", "zones", "woredas", "kebeles"):
+        result[f"{level}_covered"] = covered.get(f"{level}_covered", 0)
+        result[f"{level}_total"] = totals.get(level)
+    return [result]
+
+
+@router.get("/farmersByRecordState", response_model=Rows)
+async def get_farmers_by_record_state(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
+    # A breakdown by status must see every status, so no ACTIVE default here.
+    where = build_where_clause(filters, default_active=False)
+    query = f"""
+        SELECT COALESCE(record_status, 'Unknown') AS record_state, COUNT(*)::bigint AS farmers
+        FROM fr_rpt_farmer
+        {where.sql}
         GROUP BY 1
         ORDER BY farmers DESC
     """
-    async with pool.acquire() as conn:
-        records = await conn.fetch(query, *values)
-    return [dict(r) for r in records]
+    return await fetch(pool, query, where)
 
-@router.get("/farmersByImportStatus", response_model=List[Dict[str, Any]])
+
+# GEN2 has no PSNP or legacy-import concept yet; the UI treats [] as "no data".
+@router.get("/farmersByPsnpStatus", response_model=Rows)
+async def get_farmers_by_psnp_status():
+    return []
+
+
+@router.get("/farmersByImportStatus", response_model=Rows)
 async def get_farmers_by_import_status():
     return []

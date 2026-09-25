@@ -6,5 +6,7 @@ services:
     ports:
       - "8005:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/farmer_registry_db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/farmer_registry_db}
+      # Ethiopia: national woreda count, for the coverage rate. Override per deployment.
+      GEO_LEVEL_TOTALS: '${GEO_LEVEL_TOTALS:-{"woredas": 1138}}'
     restart: unless-stopped
