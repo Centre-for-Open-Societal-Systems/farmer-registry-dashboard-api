@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  api:
+    build: .
+    container_name: farmer-registry-dashboard-api
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/farmer_registry_db}
+    restart: unless-stopped
