@@ -8,7 +8,10 @@ Settings are read from environment variables, or from a `.env` file in the worki
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | yes | — | PostgreSQL DSN for the farmer registry database, for example `postgresql://dashboard_ro:***@postgres:5432/farmer_registry_db`. The service fails to start without it |
+| `DATABASE_URL` | yes | — | PostgreSQL DSN for the farmer registry database, for example `postgresql://dashboard_ro@postgres:5432/farmer_registry_db`. The service fails to start without it |
+| `PGPASSWORD` | recommended | — | Database password, read by asyncpg when the DSN has none. Keeping it out of `DATABASE_URL` avoids URL-encoding it, and a password with `@ : / ? #` then just works. A password inside the DSN also works, but must be URL-encoded |
+| `DB_POOL_MIN_SIZE` | no | `1` | Connections each worker keeps open |
+| `DB_POOL_MAX_SIZE` | no | `5` | Most connections each worker opens under load |
 | `API_V1_STR` | no | `/api/v1` | Route prefix for the chart endpoints |
 | `ALLOWED_ORIGINS` | no | `["http://localhost:3000"]` | JSON list of origins allowed by CORS. Browsers are not expected to call the API directly, so keep this narrow |
 | `GEO_LEVEL_TOTALS` | no | `{}` | JSON object giving the national number of administrative units per level, used by `registryCoverage`. Keys: `regions`, `zones`, `woredas`, `kebeles`. A missing level is reported as `null` |
@@ -44,7 +47,7 @@ gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker -
 ```
 
 To change the worker count, override the container command. Each worker opens its own connection
-pool: asyncpg's defaults are a minimum of 10 and a maximum of 10 connections. See
+pool of `DB_POOL_MIN_SIZE`–`DB_POOL_MAX_SIZE` connections (1–5 by default). See
 [Deployment and operations](deployment.md#sizing) for sizing.
 
 ## Test settings

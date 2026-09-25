@@ -14,7 +14,7 @@ The image declares a `HEALTHCHECK` that calls `GET /health` every 30 seconds. `/
 ```bash
 docker build -t farmer-registry-dashboard-api:<version> .
 docker run -d --name farmer-registry-dashboard-api \
-  -e DATABASE_URL=postgresql://dashboard_ro:***@postgres:5432/farmer_registry_db \
+  -e DATABASE_URL=postgresql://dashboard_ro@postgres:5432/farmer_registry_db \n  -e PGPASSWORD=*** \
   -e GEO_LEVEL_TOTALS='{"woredas": 1138}' \
   -p 127.0.0.1:8005:8000 \
   farmer-registry-dashboard-api:<version>
@@ -33,16 +33,17 @@ The service is stateless and fits a standard Deployment and Service pair:
 - **Service:** `ClusterIP` only. Do not create an Ingress, because the only client is the
   dashboards BFF inside the cluster (see [Security](security.md)).
 - **Probes:** a readiness and liveness probe on `GET /health`, port `8000`.
-- **Secrets:** `DATABASE_URL` from a Secret; `GEO_LEVEL_TOTALS` and `ALLOWED_ORIGINS` from a
+- **Secrets:** `PGPASSWORD` from a Secret, `DATABASE_URL` without the password; `GEO_LEVEL_TOTALS` and `ALLOWED_ORIGINS` from a
   ConfigMap.
 - **Resources:** a starting point is `100m` / `256Mi` requested per replica. The work is I/O-bound.
 
 ## Sizing
 
-- **Connections:** each gunicorn worker holds its own asyncpg pool (10 connections by default), so
-  one replica can use up to **workers × 10** connections (40 by default). Make sure the database's
-  `max_connections` covers every replica. For most deployments one replica with 2–4 workers is
-  plenty.
+- **Connections:** each gunicorn worker holds its own asyncpg pool of `DB_POOL_MIN_SIZE` to
+  `DB_POOL_MAX_SIZE` connections (1–5 by default). One replica therefore keeps **workers × 1** open
+  and uses at most **workers × 5** (20 with 4 workers). The database is shared with the rest of the
+  registry, so keep the pool small. The BFF cache means a handful of connections serves any number
+  of viewers. For most deployments one replica with 2–4 workers is plenty.
 - **Load:** the dashboards BFF caches every chart and filter combination (15 minutes by default) and
   warms the unfiltered view on a timer. Steady-state load is therefore roughly *one request per chart
   per distinct filter combination per cache period for each BFF instance*. It does not grow with page
@@ -65,7 +66,7 @@ After a bulk import, refresh the views (land first, then farmer) to publish the 
 | Container health | Docker / Kubernetes probe on `/health` | `healthy` / ready |
 | Error rate | gunicorn logs (stdout) | No `500` responses |
 | Latency | the BFF's `executionTime` for a cache miss | Well under 1 s |
-| Database connections | `pg_stat_activity` filtered by the service's user | ≤ workers × 10 per replica |
+| Database connections | `pg_stat_activity` filtered by the service's user | ≤ workers × `DB_POOL_MAX_SIZE` per replica |
 | View freshness | the registry's refresh job | Last successful run within the schedule |
 
 gunicorn does not write access logs by default. Add `--access-logfile -` to the command if you need

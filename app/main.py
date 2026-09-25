@@ -12,7 +12,13 @@ from app.core.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize the database pool
-    app.state.pool = await asyncpg.create_pool(settings.DATABASE_URL)
+    app.state.pool = await asyncpg.create_pool(
+        settings.DATABASE_URL,
+        # Unset or empty lets asyncpg use the password in the DSN, if any.
+        password=settings.PGPASSWORD or None,
+        min_size=settings.DB_POOL_MIN_SIZE,
+        max_size=settings.DB_POOL_MAX_SIZE,
+    )
     yield
     # Clean up the pool on shutdown
     await app.state.pool.close()
