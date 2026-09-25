@@ -1,5 +1,8 @@
 # Configuration
 
+Never commit real values: `.env` is git-ignored, `.env.example` holds placeholders only, and deployed
+environments take values from the platform's secret store.
+
 Settings are read from environment variables, or from a `.env` file in the working directory, by
 `app/core/config.py` (pydantic-settings). Complex values are JSON.
 
@@ -14,7 +17,7 @@ Settings are read from environment variables, or from a `.env` file in the worki
 Example `.env`:
 
 ```ini
-DATABASE_URL=postgresql://dashboard_ro:change-me@localhost:5432/farmer_registry_db
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/farmer_registry_db
 ALLOWED_ORIGINS=["http://localhost:3000"]
 GEO_LEVEL_TOTALS={"woredas": 1138}
 ```
@@ -48,4 +51,4 @@ pool: asyncpg's defaults are a minimum of 10 and a maximum of 10 connections. Se
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `TEST_DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/farmer_registry_db` | Server the test suite connects to. The tests create and drop their own schema and never read registry data |
+| `TEST_DATABASE_URL` | none | Server the database tests connect to, with a role that may create schemas. The tests create and drop their own schema and never read registry data. When unset, database tests are skipped and only the unit tests run |

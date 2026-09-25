@@ -30,8 +30,9 @@ make dev                         # uvicorn with reload on http://localhost:8005
 docker compose up -d --build     # production-like container on http://localhost:8005
 ```
 
-When the service runs in a container and the database runs on the host, use
-`host.docker.internal` in `DATABASE_URL`. That is the compose file's default.
+The compose file requires `DATABASE_URL` and publishes the port on `127.0.0.1` only. When the
+service runs in a container and the database runs on the host, use `host.docker.internal` as the
+host in `DATABASE_URL`.
 
 ## Tests
 
@@ -39,8 +40,15 @@ When the service runs in a container and the database runs on the host, use
 make test        # pytest -q
 ```
 
-The suite needs a PostgreSQL server (`TEST_DATABASE_URL`) but **not** registry data. For each test,
-a fixture in `tests/conftest.py`:
+The database tests need a PostgreSQL server, given as `TEST_DATABASE_URL` (a role that may create
+schemas), but **not** registry data. Without `TEST_DATABASE_URL` they are skipped and only the unit
+tests run:
+
+```bash
+TEST_DATABASE_URL=postgresql://<user>:<password>@localhost:5432/<db> make test
+```
+
+For each database test, a fixture in `tests/conftest.py`:
 
 1. creates a uniquely named schema (`test_dash_<random>`)
 2. creates small `fr_rpt_farmer` and `fr_rpt_land` tables in it and loads a fixed dataset of four
@@ -96,8 +104,9 @@ because FastAPI's `Depends()` defaults trigger it.
 3. **Add the response keys** to `CONTRACT` in `tests/test_charts.py`, and add behaviour tests for
    anything non-obvious.
 4. **Document it** in [api-reference.md](api-reference.md).
-5. **Register it in the dashboards.** Add the chart ID to the dashboards' list of API-served charts,
-   so the BFF routes it here.
+5. **Register it in the dashboards.** Add the chart ID to the `farmer-registry` entry of
+   `DASHBOARD_SERVICES` in the dashboards' `server/dashboard-services.ts`, so the BFF routes it
+   here.
 
 ## Changing the reporting views
 

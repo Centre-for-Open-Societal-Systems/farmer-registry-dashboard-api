@@ -7,6 +7,22 @@ and how much land they hold under which tenure. The statistics are computed over
 and filtered by geography and a few attributes. This service computes them and returns them as small
 JSON arrays shaped for the dashboard charts.
 
+## The dashboard service pattern
+
+The OAN dashboards get registry data through **one dashboard service per registry**. Each service:
+
+- runs next to its registry, and is the only component holding that registry's database
+  credentials (a read-only role on its reporting views)
+- implements the same contract, `GET /api/v1/charts/<chartId>?<filters>`, returning a JSON array of
+  aggregate rows, plus `GET /health`
+- returns aggregates only, and is reachable only on the private network
+
+The dashboards map chart IDs to services, call them server-to-server, and cache the responses.
+Adding a registry to the dashboards therefore means deploying its dashboard service and registering
+it, with no database access from the dashboards. This repository is the farmer registry's service
+and the reference implementation. A new registry's service should copy its structure: filters
+dependency, `build_where_clause`, contract tests.
+
 ## Position in the system
 
 ```mermaid

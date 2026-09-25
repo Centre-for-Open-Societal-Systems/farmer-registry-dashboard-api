@@ -15,8 +15,8 @@ logs:
 install-dev:
 	pip install -r requirements-dev.txt
 
-# Needs a reachable Postgres (TEST_DATABASE_URL, default localhost:5432/farmer_registry_db).
-# Tests create and drop their own schema; registry data is never touched.
+# Database tests need TEST_DATABASE_URL (a role that may create schemas); without it
+# they are skipped. Tests create and drop their own schema; registry data is never touched.
 test:
 	pytest -q
 

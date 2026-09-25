@@ -5,18 +5,20 @@ never against the registry's data: each test gets a throw-away schema holding
 small fr_rpt_* tables, and the pool's search_path points at it. The schema is
 dropped afterwards.
 
-TEST_DATABASE_URL picks the server; it defaults to a local Postgres on
-localhost:5432.
+TEST_DATABASE_URL names the server, with a role that may create schemas. It is
+never defaulted: without it, the database tests are skipped and only the pure
+unit tests run.
 """
 
 import os
 import uuid
 from datetime import date
 
-os.environ.setdefault(
-    "DATABASE_URL",
-    os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/farmer_registry_db"),
-)
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+# The app's settings require DATABASE_URL at import time; the tests replace
+# the pool, so the value is never used to connect.
+os.environ.setdefault("DATABASE_URL", "postgresql://unused@localhost/unused")
 
 import asyncpg  # noqa: E402
 import httpx  # noqa: E402
@@ -107,7 +109,9 @@ async def _seed(conn: asyncpg.Connection) -> None:
 
 @pytest.fixture
 async def pool():
-    dsn = os.environ["DATABASE_URL"]
+    if not TEST_DATABASE_URL:
+        pytest.skip("TEST_DATABASE_URL is not set")
+    dsn = TEST_DATABASE_URL
     schema = f"test_dash_{uuid.uuid4().hex[:10]}"
     admin = await asyncpg.connect(dsn)
     await admin.execute(f"CREATE SCHEMA {schema}")

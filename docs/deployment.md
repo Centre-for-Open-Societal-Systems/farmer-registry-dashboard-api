@@ -22,8 +22,8 @@ docker run -d --name farmer-registry-dashboard-api \
 
 ## Docker Compose
 
-`docker-compose.yml` runs the service alone on host port `8005`, and points `DATABASE_URL` at
-`host.docker.internal` unless it is overridden. To run it next to the farmer registry stack, add it to
+`docker-compose.yml` runs the service alone, publishing port `8005` on `127.0.0.1` only. It requires
+`DATABASE_URL` from the environment or an uncommitted `.env`, and refuses to start without it. To run it next to the farmer registry stack, add it to
 the same Docker network and use the Postgres service name in `DATABASE_URL`.
 
 ## Kubernetes

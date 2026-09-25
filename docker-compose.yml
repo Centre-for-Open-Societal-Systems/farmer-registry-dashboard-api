@@ -4,9 +4,11 @@ services:
     build: .
     container_name: farmer-registry-dashboard-api
     ports:
-      - "8005:8000"
+      # Bound to localhost: the service has no authentication and must not be
+      # reachable from other hosts. Its only client is the dashboards BFF.
+      - "127.0.0.1:8005:8000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/farmer_registry_db}
-      # Ethiopia: national woreda count, for the coverage rate. Override per deployment.
-      GEO_LEVEL_TOTALS: '${GEO_LEVEL_TOTALS:-{"woredas": 1138}}'
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL (read-only role on farmer_registry_db)}
+      GEO_LEVEL_TOTALS: ${GEO_LEVEL_TOTALS:-{}}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-["http://localhost:3000"]}
     restart: unless-stopped

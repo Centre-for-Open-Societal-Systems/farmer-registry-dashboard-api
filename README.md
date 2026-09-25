@@ -1,8 +1,14 @@
 # Farmer Registry Dashboard API
 
-A read-only HTTP service that serves aggregate statistics from the OpenG2P farmer registry to the
-OAN dashboards. It exposes one endpoint per dashboard chart and computes each response from the
-registry's materialized reporting views (`fr_rpt_farmer`, `fr_rpt_land`).
+The **dashboard service** of the OpenG2P farmer registry: a read-only HTTP service that serves
+aggregate statistics about the registry to the OAN dashboards. It exposes one endpoint per dashboard
+chart and computes each response from the registry's materialized reporting views (`fr_rpt_farmer`,
+`fr_rpt_land`).
+
+Each registry (farmer, livestock, crop, …) publishes its statistics through its own dashboard
+service, and all of them share one HTTP contract. This service is the reference implementation of
+that pattern. It is the only component that holds credentials for the farmer registry database:
+the dashboards call the service and never the database.
 
 - **Stack:** Python 3.11, FastAPI, asyncpg, gunicorn with Uvicorn workers
 - **Consumer:** the OAN dashboards backend-for-frontend (BFF), which caches responses
