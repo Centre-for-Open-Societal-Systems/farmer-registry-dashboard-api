@@ -15,6 +15,7 @@ Settings are read from environment variables, or from a `.env` file in the worki
 | `API_V1_STR` | no | `/api/v1` | Route prefix for the chart endpoints |
 | `ALLOWED_ORIGINS` | no | `["http://localhost:3000"]` | JSON list of origins allowed by CORS. Browsers are not expected to call the API directly, so keep this narrow |
 | `GEO_LEVEL_TOTALS` | no | `{}` | JSON object giving the national number of administrative units per level, used by `registryCoverage`. Keys: `regions`, `zones`, `woredas`, `kebeles`. A missing level is reported as `null` |
+| `GEO_TOP_LEVEL` | no | detected | Reporting-view position (`1` or `2`) of the region level. Normally leave it unset: the API reads `fr_rpt_geo_levels` and skips a country root. Set it only if the level names are unusual, for example a root that is not called `country` |
 | `PROJECT_NAME` | no | `Farmer Registry Dashboard API` | Title shown in the OpenAPI docs |
 
 Example `.env`:

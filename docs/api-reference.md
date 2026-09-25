@@ -36,10 +36,10 @@ leaving the parameter out.
 
 | Parameter | Type | Matches | Notes |
 | --- | --- | --- | --- |
-| `region` | string | first geography level (`geo_1_id`) | Either the bare code (`ET04`) or the full level value id (`region-ET04`) |
-| `zone` | string | second level (`geo_2_id`) | as above |
-| `woreda` | string | third level (`geo_3_id`) | as above |
-| `kebele` | string | fourth level (`geo_4_id`) | as above |
+| `region` | string | first dashboard geography level | Either the bare code (`ET04`) or the full level value id (`region-ET04`) |
+| `zone` | string | second level | as above |
+| `woreda` | string | third level | as above |
+| `kebele` | string | fourth level | as above |
 | `farmingType` | string | the farmer's main farming type | Case-insensitive, for example `crop`, `LIVESTOCK`, `mixed` |
 | `recordState` | string | `record_status` | Case-insensitive. **If omitted, only `ACTIVE` records are counted**, except in `farmersByRecordState` |
 
@@ -49,6 +49,15 @@ zone outside the selected region simply matches nothing. Unknown parameters are 
 The level names used above (region, zone, woreda, kebele) are the parameter names the API accepts.
 The API matches on the position in the hierarchy, so a deployment whose levels have other names uses
 the same parameters.
+
+**Where the four levels start.** The reporting views store the hierarchy by position (`geo_1` …
+`geo_5`), in the order of the country pack, and `fr_rpt_geo_levels` names each position. Some packs
+start at the region (`region, zone, woreda, kebele`). Others have a country root above it
+(`country, region, zone, woreda, village`). The API reads `fr_rpt_geo_levels` and maps `region` to
+the first position that is not a country (`country` or `nation`), with the other three levels
+below it. With a country root, `region` is `geo_2` and `kebele` is `geo_5`, so responses carry
+region codes (`ET04`), never the country (`ET`). `GEO_TOP_LEVEL` overrides the detection (see
+[Configuration](configuration.md)).
 
 ## Endpoints
 
@@ -93,7 +102,7 @@ Farmers per top-level administrative unit, largest first.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `region` | string | Unit name (`geo_1`) |
+| `region` | string | Unit name |
 | `region_code` | string | Unit code without the level prefix (for example `ET04`). Use it to join to map features |
 | `farmers` | integer | Farmers in the unit |
 
@@ -105,7 +114,7 @@ Farmers per top-level administrative unit, largest first.
 
 ### `GET /api/v1/charts/farmersByZone`, `farmersByWoreda`, `farmersByKebele`
 
-Farmers per unit at hierarchy levels 2, 3 and 4, largest first. Combine with the parent filters to
+Farmers per unit at the second, third and fourth dashboard levels (zone, woreda, kebele), largest first. Combine with the parent filters to
 drill down, for example `farmersByWoreda?region=ET04&zone=ET0410` for the woredas of one zone.
 
 | Chart | Fields |

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_db_pool
 from app.api.filters import ChartFilters, Where, build_where_clause
+from app.core import geo
 from app.core.config import settings
 
 router = APIRouter()
@@ -45,18 +46,19 @@ async def get_farmer_kpis(filters: ChartFilters = Depends(), pool: asyncpg.Pool 
     return await fetch(pool, query, where)
 
 
-async def farmers_by_geo_level(pool: asyncpg.Pool, filters: ChartFilters, level: int, name: str) -> Rows:
-    """Farmers per administrative unit at hierarchy position `level` (1-4).
+async def farmers_by_geo_level(pool: asyncpg.Pool, filters: ChartFilters, name: str) -> Rows:
+    """Farmers per administrative unit at dashboard level `name` (region .. kebele).
 
     `<name>_code` is the unit's code without its level prefix (region-ET04 ->
-    ET04), which is what map boundaries are keyed on. `level` and `name` come
-    from the fixed handlers below, never from the request.
+    ET04), which is what map boundaries are keyed on. `name` comes from the
+    fixed handlers below, never from the request; its column from app/core/geo.py.
     """
     where = build_where_clause(filters)
+    label, code = geo.column(name, ""), geo.column(name)
     query = f"""
         SELECT
-            COALESCE(geo_{level}, 'Unknown')                                                  AS {name},
-            COALESCE(substr(geo_{level}_id, strpos(geo_{level}_id, '-') + 1), 'Unknown')    AS {name}_code,
+            COALESCE({label}, 'Unknown')                                          AS {name},
+            COALESCE(substr({code}, strpos({code}, '-') + 1), 'Unknown')          AS {name}_code,
             COUNT(*)::bigint                                                                  AS farmers
         FROM fr_rpt_farmer
         {where.sql}
@@ -68,22 +70,22 @@ async def farmers_by_geo_level(pool: asyncpg.Pool, filters: ChartFilters, level:
 
 @router.get("/farmersByRegion", response_model=Rows)
 async def get_farmers_by_region(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
-    return await farmers_by_geo_level(pool, filters, 1, "region")
+    return await farmers_by_geo_level(pool, filters, "region")
 
 
 @router.get("/farmersByZone", response_model=Rows)
 async def get_farmers_by_zone(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
-    return await farmers_by_geo_level(pool, filters, 2, "zone")
+    return await farmers_by_geo_level(pool, filters, "zone")
 
 
 @router.get("/farmersByWoreda", response_model=Rows)
 async def get_farmers_by_woreda(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
-    return await farmers_by_geo_level(pool, filters, 3, "woreda")
+    return await farmers_by_geo_level(pool, filters, "woreda")
 
 
 @router.get("/farmersByKebele", response_model=Rows)
 async def get_farmers_by_kebele(filters: ChartFilters = Depends(), pool: asyncpg.Pool = Depends(get_db_pool)):
-    return await farmers_by_geo_level(pool, filters, 4, "kebele")
+    return await farmers_by_geo_level(pool, filters, "kebele")
 
 
 @router.get("/farmersByFarmerId", response_model=Rows)
@@ -217,10 +219,10 @@ async def get_registry_coverage(filters: ChartFilters = Depends(), pool: asyncpg
     where = build_where_clause(filters)
     query = f"""
         SELECT
-            COUNT(DISTINCT geo_1_id)::bigint AS regions_covered,
-            COUNT(DISTINCT geo_2_id)::bigint AS zones_covered,
-            COUNT(DISTINCT geo_3_id)::bigint AS woredas_covered,
-            COUNT(DISTINCT geo_4_id)::bigint AS kebeles_covered
+            COUNT(DISTINCT {geo.column("region")})::bigint AS regions_covered,
+            COUNT(DISTINCT {geo.column("zone")})::bigint   AS zones_covered,
+            COUNT(DISTINCT {geo.column("woreda")})::bigint AS woredas_covered,
+            COUNT(DISTINCT {geo.column("kebele")})::bigint AS kebeles_covered
         FROM fr_rpt_farmer
         {where.sql}
     """
