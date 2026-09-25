@@ -26,6 +26,15 @@ curl "http://localhost:8005/api/v1/charts/farmerKpis?region=ET04"
 
 Interactive OpenAPI docs are served at `http://localhost:8005/docs`.
 
+A Postman collection with every endpoint is in `postman/`. Each request has contract tests, and the
+filters are included but disabled. Import it, and set the `baseUrl` variable to the service's
+address (default `http://localhost:8005`). To run it from the command line:
+
+```bash
+npx newman run "postman/Farmer Registry Dashboard Service.postman_collection.json" \
+  --env-var baseUrl=http://localhost:8005
+```
+
 ## Endpoints at a glance
 
 | Endpoint | Returns |
