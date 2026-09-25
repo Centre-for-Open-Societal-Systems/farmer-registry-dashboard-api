@@ -1,0 +1,1285 @@
+{
+  "info": {
+    "_postman_id": "145295f6-e02d-4233-8274-aee84c8bac8f",
+    "name": "Farmer Registry Dashboard Service",
+    "description": "Read-only aggregate API of the farmer registry, used by the OAN dashboards.\n\n- Every chart: `GET {{baseUrl}}/api/v1/charts/<chartId>` returns a JSON array of rows.\n- Filters (all optional, combined with AND) are included on each request but disabled; enable the ones you need. `all` or omitted means no filter.\n  - `region`, `zone`, `woreda`, `kebele`: administrative unit codes for levels 1-4, bare (`ET04`) or full level id (`region-ET04`).\n  - `farmingType`: farming type, case-insensitive (`crop`, `livestock`, `mixed`, ...).\n  - `recordState`: record status, case-insensitive. Without it, only ACTIVE records are counted (except `farmersByRecordState`).\n- Categorical values are registry codes (FEMALE, UNDER_25, OWNER, ...).\n- The collection-level test checks status 200 and the exact response keys per chart.\n\nSet `baseUrl` (collection variable, or the environment) to the service URL. The service has no authentication and is meant to be reachable on the private network only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49316197",
+    "_collection_link": "https://go.postman.co/collection/49316197-145295f6-e02d-4233-8274-aee84c8bac8f?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Liveness and database connectivity (runs SELECT 1)."
+      },
+      "response": [
+        {
+          "name": "Healthy",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "{\"status\": \"ok\"}"
+        }
+      ]
+    },
+    {
+      "name": "farmerKpis",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmerKpis",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmerKpis"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Headline totals over the filtered farmers: counts, gender split, land (ha), owned land, farmer IDs. One row.\n\nReturns a JSON array of rows with keys: `avg_farm_size`, `farmers_with_id`, `farmers_with_owned_land`, `farmers_without_id`, `female_farmers`, `household_heads`, `male_farmers`, `total_farmers`, `total_land_size`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmerKpis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmerKpis"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"total_farmers\": 504, \"female_farmers\": 258, \"male_farmers\": 243, \"total_land_size\": 1519.007897, \"avg_farm_size\": 4.617045279635258, \"household_heads\": 0, \"farmers_with_owned_land\": 155, \"farmers_with_id\": 504, \"farmers_without_id\": 0}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByRegion",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByRegion",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByRegion"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per level-1 unit (region), largest first.\n\nReturns a JSON array of rows with keys: `farmers`, `region`, `region_code`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByRegion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByRegion"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"region\": \"Oromia\", \"region_code\": \"ET04\", \"farmers\": 195}, {\"region\": \"Amhara\", \"region_code\": \"ET03\", \"farmers\": 115}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByZone",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByZone",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByZone"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per level-2 unit (zone). Combine with `region` to drill down.\n\nReturns a JSON array of rows with keys: `farmers`, `zone`, `zone_code`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByZone",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByZone"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"zone\": \"South Wello\", \"zone_code\": \"ET0304\", \"farmers\": 22}, {\"zone\": \"Arsi\", \"zone_code\": \"ET0408\", \"farmers\": 20}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByWoreda",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByWoreda",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByWoreda"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per level-3 unit (woreda). Combine with `region`/`zone` to drill down.\n\nReturns a JSON array of rows with keys: `farmers`, `woreda`, `woreda_code`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByWoreda",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByWoreda"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"woreda\": \"Munessa\", \"woreda_code\": \"ET040817\", \"farmers\": 6}, {\"woreda\": \"Konta Koysha\", \"woreda_code\": \"ET110601\", \"farmers\": 5}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByKebele",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByKebele",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByKebele"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per level-4 unit (kebele). Combine with parent filters to drill down.\n\nReturns a JSON array of rows with keys: `farmers`, `kebele`, `kebele_code`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByKebele",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByKebele"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"kebele\": \"Abtegaho\", \"kebele_code\": \"ET031603888019\", \"farmers\": 2}, {\"kebele\": \"Kernewary\", \"kebele_code\": \"ET030619201001\", \"farmers\": 2}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByFarmerId",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByFarmerId",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByFarmerId"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers with and without a farmer ID (registry functional record id).\n\nReturns a JSON array of rows with keys: `farmers`, `id_status`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByFarmerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByFarmerId"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"id_status\": \"With Farmer ID\", \"farmers\": 504}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByGender",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByGender",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByGender"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per gender code.\n\nReturns a JSON array of rows with keys: `farmers`, `gender`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByGender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByGender"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"gender\": \"FEMALE\", \"farmers\": 258}, {\"gender\": \"MALE\", \"farmers\": 243}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByType",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByType",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByType"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per main farming type (type of the largest parcel).\n\nReturns a JSON array of rows with keys: `farmers`, `farming_type`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByType",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByType"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"farming_type\": \"Unknown\", \"farmers\": 175}, {\"farming_type\": \"AQUACULTURE\", \"farmers\": 77}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByAgeAndGender",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByAgeAndGender",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByAgeAndGender"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per age band (UNDER_25, 25_34, 35_49, 50_64, 65_PLUS, UNKNOWN) and gender.\n\nReturns a JSON array of rows with keys: `age_group`, `farmers`, `gender`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByAgeAndGender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByAgeAndGender"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"age_group\": \"UNDER_25\", \"gender\": \"FEMALE\", \"farmers\": 66}, {\"age_group\": \"UNDER_25\", \"gender\": \"MALE\", \"farmers\": 73}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByEducation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByEducation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByEducation"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per education level code.\n\nReturns a JSON array of rows with keys: `education`, `farmers`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByEducation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByEducation"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"education\": \"HIGHER_EDUCATION\", \"farmers\": 111}, {\"education\": \"INTERMEDIARY\", \"farmers\": 96}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByRecordState",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByRecordState",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByRecordState"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Farmers per record status. Unlike other charts, all statuses are included unless `recordState` is set.\n\nReturns a JSON array of rows with keys: `farmers`, `record_state`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByRecordState",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByRecordState"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"record_state\": \"ACTIVE\", \"farmers\": 504}]"
+        }
+      ]
+    },
+    {
+      "name": "landTenureSplit",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/landTenureSplit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "landTenureSplit"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Parcels and hectares per tenure type, per parcel, for the parcels of the farmers matching the filters.\n\nReturns a JSON array of rows with keys: `area`, `ownership_type`, `parcels`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/landTenureSplit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "landTenureSplit"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"ownership_type\": \"CROP_SHARE\", \"parcels\": 180, \"area\": 616.491919}, {\"ownership_type\": \"OWNER\", \"parcels\": 170, \"area\": 466.212061}]"
+        }
+      ]
+    },
+    {
+      "name": "registryTrendByMonth",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/registryTrendByMonth",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "registryTrendByMonth"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Registrations per month (YYYY-MM) with total and owner-operated area (ha).\n\nReturns a JSON array of rows with keys: `farmers`, `owned_area`, `period`, `total_area`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/registryTrendByMonth",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "registryTrendByMonth"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"period\": \"2026-04\", \"farmers\": 500, \"total_area\": 1519.007897, \"owned_area\": 466.212061}]"
+        }
+      ]
+    },
+    {
+      "name": "registryCoverage",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/registryCoverage",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "registryCoverage"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "ET04",
+              "disabled": true
+            },
+            {
+              "key": "zone",
+              "value": "ET0410",
+              "disabled": true
+            },
+            {
+              "key": "woreda",
+              "value": "ET041016",
+              "disabled": true
+            },
+            {
+              "key": "kebele",
+              "value": "",
+              "disabled": true
+            },
+            {
+              "key": "farmingType",
+              "value": "crop",
+              "disabled": true
+            },
+            {
+              "key": "recordState",
+              "value": "ACTIVE",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Distinct units reached per level; national totals from GEO_LEVEL_TOTALS (null when not configured).\n\nReturns a JSON array of rows with keys: `kebeles_covered`, `kebeles_total`, `regions_covered`, `regions_total`, `woredas_covered`, `woredas_total`, `zones_covered`, `zones_total`."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/registryCoverage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "registryCoverage"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[{\"regions_covered\": 15, \"regions_total\": null, \"zones_covered\": 85, \"zones_total\": null, \"woredas_covered\": 355, \"woredas_total\": null, \"kebeles_covered\": 496, \"kebeles_total\": null}]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByPsnpStatus",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByPsnpStatus",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByPsnpStatus"
+          ]
+        },
+        "description": "Placeholder: always []. No registry concept yet."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByPsnpStatus",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByPsnpStatus"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[]"
+        }
+      ]
+    },
+    {
+      "name": "farmersByImportStatus",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/charts/farmersByImportStatus",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "charts",
+            "farmersByImportStatus"
+          ]
+        },
+        "description": "Placeholder: always []. No registry concept yet."
+      },
+      "response": [
+        {
+          "name": "Unfiltered",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/charts/farmersByImportStatus",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "charts",
+                "farmersByImportStatus"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": null,
+          "cookie": [],
+          "body": "[]"
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Contract checks for every request. Keys per chart mirror CONTRACT in the service's tests/test_charts.py.",
+          "const CONTRACT = {\"farmerKpis\": [\"avg_farm_size\", \"farmers_with_id\", \"farmers_with_owned_land\", \"farmers_without_id\", \"female_farmers\", \"household_heads\", \"male_farmers\", \"total_farmers\", \"total_land_size\"], \"farmersByRegion\": [\"farmers\", \"region\", \"region_code\"], \"farmersByZone\": [\"farmers\", \"zone\", \"zone_code\"], \"farmersByWoreda\": [\"farmers\", \"woreda\", \"woreda_code\"], \"farmersByKebele\": [\"farmers\", \"kebele\", \"kebele_code\"], \"farmersByFarmerId\": [\"farmers\", \"id_status\"], \"farmersByGender\": [\"farmers\", \"gender\"], \"farmersByType\": [\"farmers\", \"farming_type\"], \"farmersByAgeAndGender\": [\"age_group\", \"farmers\", \"gender\"], \"farmersByEducation\": [\"education\", \"farmers\"], \"landTenureSplit\": [\"area\", \"ownership_type\", \"parcels\"], \"registryTrendByMonth\": [\"farmers\", \"owned_area\", \"period\", \"total_area\"], \"registryCoverage\": [\"kebeles_covered\", \"kebeles_total\", \"regions_covered\", \"regions_total\", \"woredas_covered\", \"woredas_total\", \"zones_covered\", \"zones_total\"], \"farmersByRecordState\": [\"farmers\", \"record_state\"], \"farmersByPsnpStatus\": [], \"farmersByImportStatus\": []};",
+          "pm.test('status is 200', () => pm.response.to.have.status(200));",
+          "const path = pm.request.url.getPath();",
+          "if (path === '/health') {",
+          "  pm.test('health reports ok', () => pm.expect(pm.response.json().status).to.eql('ok'));",
+          "} else {",
+          "  const chart = path.split('/').pop();",
+          "  const rows = pm.response.json();",
+          "  pm.test('body is an array', () => pm.expect(rows).to.be.an('array'));",
+          "  const keys = CONTRACT[chart];",
+          "  if (keys) {",
+          "    pm.test('rows have exactly the contract keys', () => rows.forEach(r => pm.expect(Object.keys(r).sort()).to.eql(keys)));",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8005",
+      "description": "Base URL of the dashboard service."
+    }
+  ]
+}
