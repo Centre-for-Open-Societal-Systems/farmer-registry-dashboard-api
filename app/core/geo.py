@@ -11,11 +11,15 @@ Resolution, first match wins:
   1. GEO_TOP_LEVEL, if configured: the position of the dashboards' first level.
   2. fr_rpt_geo_levels: the first position whose level is not a country.
   3. Position 1 (the view cannot be read, e.g. before the reporting views exist).
-Only a successful read of the view is cached; otherwise the next request tries
-again, so a service started before the views were created corrects itself.
+A successful read is kept for GEO_LEVELS_RECHECK_SECONDS and then read again;
+a failed read is retried on the next request. The registry can rebuild its
+views with a different hierarchy (for example when a country root is added or
+removed), and a long-running service must follow it rather than keep the
+mapping it saw at start-up.
 """
 
 import logging
+import time
 
 import asyncpg
 
@@ -45,12 +49,20 @@ def _configured() -> int | None:
 
 
 _top: int | None = _configured()
+# time.monotonic() of the last successful read of fr_rpt_geo_levels.
+_read_at: float | None = None
+
+
+def _fresh() -> bool:
+    if settings.GEO_TOP_LEVEL is not None:
+        return True
+    return _read_at is not None and time.monotonic() - _read_at < settings.GEO_LEVELS_RECHECK_SECONDS
 
 
 async def resolve(pool: asyncpg.Pool) -> None:
-    """Find the top level once per process; a no-op after the first success."""
-    global _top
-    if _top is not None:
+    """Find the top level; re-read once the last successful read has aged out."""
+    global _top, _read_at
+    if _fresh():
         return
     try:
         async with pool.acquire() as conn:
@@ -62,11 +74,14 @@ async def resolve(pool: asyncpg.Pool) -> None:
         (r["depth"] for r in rows if (r["level_name"] or "").strip().lower() not in ROOT_LEVEL_NAMES),
         1,
     )
-    _top = _check(top)
-    log.info(
-        "geography levels: %s",
-        ", ".join(f"{name}=geo_{position(name)}" for name in LEVELS),
-    )
+    top = _check(top)
+    _read_at = time.monotonic()
+    if top != _top:
+        _top = top
+        log.info(
+            "geography levels: %s",
+            ", ".join(f"{name}=geo_{position(name)}" for name in LEVELS),
+        )
 
 
 def position(level: str) -> int:
@@ -81,5 +96,6 @@ def column(level: str, suffix: str = "_id") -> str:
 
 def reset(top: int | None = None) -> None:
     """Forget the resolved level (tests), optionally forcing one."""
-    global _top
+    global _top, _read_at
     _top = _check(top) if top is not None else _configured()
+    _read_at = None
