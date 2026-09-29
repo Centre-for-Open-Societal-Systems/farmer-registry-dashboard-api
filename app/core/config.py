@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # region. Unset: derived from fr_rpt_geo_levels, skipping a country root
     # (see app/core/geo.py). Set it only to override that.
     GEO_TOP_LEVEL: int | None = None
+    # Seconds a detected top level is trusted before fr_rpt_geo_levels is read
+    # again, so a rebuilt hierarchy is picked up without a restart.
+    GEO_LEVELS_RECHECK_SECONDS: int = 300
 
 
 settings = Settings()

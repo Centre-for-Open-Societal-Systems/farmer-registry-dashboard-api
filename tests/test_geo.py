@@ -60,3 +60,30 @@ async def test_unreadable_view_falls_back_and_retries(pool):
         await conn.execute("INSERT INTO fr_rpt_geo_levels VALUES (1, 'Country'), (2, 'region')")
     await geo.resolve(pool)
     assert geo.position("region") == 2
+
+
+async def _set_levels(pool, *names):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM fr_rpt_geo_levels")
+        await conn.executemany("INSERT INTO fr_rpt_geo_levels VALUES ($1, $2)", list(enumerate(names, start=1)))
+
+
+async def test_rebuilt_hierarchy_is_followed_after_the_recheck_interval(pool, monkeypatch):
+    # The registry rebuilt its views without the country root while the
+    # service was running: the old mapping must not outlive the interval.
+    monkeypatch.setattr(settings, "GEO_LEVELS_RECHECK_SECONDS", 0)
+    await _set_levels(pool, "country", "region", "zone", "woreda", "village")
+    await geo.resolve(pool)
+    assert geo.position("region") == 2
+    await _set_levels(pool, "region", "zone", "woreda", "kebele")
+    await geo.resolve(pool)
+    assert geo.position("region") == 1
+
+
+async def test_levels_are_not_reread_within_the_interval(pool, monkeypatch):
+    monkeypatch.setattr(settings, "GEO_LEVELS_RECHECK_SECONDS", 3600)
+    await _set_levels(pool, "country", "region", "zone", "woreda", "village")
+    await geo.resolve(pool)
+    await _set_levels(pool, "region", "zone", "woreda", "kebele")
+    await geo.resolve(pool)
+    assert geo.position("region") == 2
