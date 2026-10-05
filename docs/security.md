@@ -5,8 +5,8 @@
 The service publishes **aggregate statistics** about a register of people. The risks that matter:
 
 1. **SQL injection** through filter parameters.
-2. **Unintended exposure**: the API being reachable from outside the platform, or being used to
-   enumerate data.
+2. **Unintended exposure**: the API being reachable from outside the platform, or being called by
+   anything other than the dashboards BFF.
 3. **Re-identification** through very small counts in narrow filter combinations.
 4. **Resource exhaustion** of the registry database.
 
@@ -25,17 +25,51 @@ The service publishes **aggregate statistics** about a register of people. The r
 - Column names, sort orders and similar choices are never taken from input. If they ever need to be,
   map the input through a fixed allow-list.
 
-### Network exposure and authentication
+### Authentication
 
-- The service has **no authentication**, by design. Its only client is the dashboards BFF, a server
-  on the same private network.
-- It must be deployed **without public ingress**:
-  - a Kubernetes `ClusterIP` Service, or
-  - a Docker network without a published port, or
-  - a port bound to `127.0.0.1` for local use
+The only client is the dashboards BFF, a server. It authenticates as itself, never as a user: it
+caches chart rows across users and refreshes them in the background, when no user is present.
+
+With `AUTH_ISSUER` set, every chart request needs an OAuth 2.0 access token from the registry's
+Keycloak realm, obtained by the BFF with the **client-credentials grant** for its own client
+(`app/core/auth.py`). A token is accepted only when it:
+
+1. is signed by a key the realm publishes (JWKS), with an asymmetric algorithm. HMAC algorithms are
+   refused, so a token "signed" with the public key does not verify;
+2. has not expired (`AUTH_LEEWAY_SECONDS` of clock skew are allowed);
+3. was issued by exactly `AUTH_ISSUER`;
+4. names this service's Keycloak client, `AUTH_AUDIENCE`, in `aud`;
+5. carries the client role `AUTH_ROLE` on that client (`resource_access`).
+
+Access is therefore granted in Keycloak, by giving the role to a caller's service account, and
+withdrawn by removing it. A token for any other client of the realm, including a staff user's
+token, is refused.
+
+| Answer | When |
+| --- | --- |
+| `401` with `WWW-Authenticate: Bearer` | No token, or not a bearer token |
+| `401` with `error="invalid_token"` | Bad signature, unknown key, expired, wrong issuer or audience |
+| `403` with `error="insufficient_scope"` | Valid token without `AUTH_ROLE` |
+| `503` | The realm's signing keys cannot be fetched |
+
+Authentication runs before anything else on the chart routes, so a rejected request never reaches
+the database. `GET /health` stays open for probes; it reveals only that the service is up.
+
+The signing keys are cached for five minutes. A token with a key id the cache does not hold
+triggers one refetch, so Keycloak key rotation needs no restart.
+
+Without `AUTH_ISSUER`, authentication is **off** and every request is accepted. The service logs a
+warning at start-up. That is acceptable only while the network alone keeps other clients out.
+
+### Network exposure
+
+- Deploy **without public ingress** whether or not authentication is on: a Kubernetes `ClusterIP`
+  Service, a Docker network without a published port, or a port bound to `127.0.0.1` for local use.
+- With authentication **off**, that private network is the only control.
+- When the BFF runs elsewhere (another cluster or server), turn authentication **on** first, then
+  publish the service only on a private route: a VPN, a private load balancer, or the platform's
+  internal gateway behind an IP allowlist. Always use TLS on that route, since it carries tokens.
 - CORS (`ALLOWED_ORIGINS`) is set narrowly as defence in depth. It is not an access control.
-- If the API ever needs to be reachable beyond the private network, put it behind the platform's
-  gateway with service-to-service authentication first.
 
 ### Data minimisation
 

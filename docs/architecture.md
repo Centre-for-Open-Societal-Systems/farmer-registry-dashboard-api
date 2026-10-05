@@ -15,7 +15,8 @@ The OAN dashboards get registry data through **one dashboard service per registr
   credentials (a read-only role on its reporting views)
 - implements the same contract, `GET /api/v1/charts/<chartId>?<filters>`, returning a JSON array of
   aggregate rows, plus `GET /health`
-- returns aggregates only, and is reachable only on the private network
+- returns aggregates only, to the dashboards BFF alone: it is reachable only on a private network and,
+  with authentication on, accepts only the BFF's client-credentials token
 
 The dashboards map chart IDs to services, call them server-to-server, and cache the responses.
 Adding a registry to the dashboards therefore means deploying its dashboard service and registering
@@ -114,7 +115,7 @@ tests/                    pytest suite (contract, behaviour, filters, injection)
 | All filtering through `build_where_clause` | The one place that turns user input into SQL. Every value is bound as a parameter, and fixed predicates are passed in rather than concatenated |
 | Count `ACTIVE` records by default | Matches what the registry treats as a live farmer. Callers can ask for another status explicitly |
 | Geography matched by position and code, not level name | Works for any country's hierarchy without code changes. The first dashboard level is the first position in `fr_rpt_geo_levels` that is not a country root, resolved once per process (`app/core/geo.py`) |
-| No authentication; network isolation instead | The only client is a server-side BFF on the same private network. See [Security](security.md) |
+| Service-to-service tokens, not user tokens | The only client is the BFF, which caches rows across users and refreshes them with no user present. It proves who it is with a client-credentials token from the registry's Keycloak, checked here against the realm's published keys, so no call to Keycloak is made per request. Off until `AUTH_ISSUER` is set, for deployments the network already isolates. See [Security](security.md) |
 | No caching in the service | The BFF caches per chart and filter combination. Caching here as well would add staleness without reducing load |
 | asyncpg with one pool per worker | Fast, native parameter binding, and no cross-process state |
 

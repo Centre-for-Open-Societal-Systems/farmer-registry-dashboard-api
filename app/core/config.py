@@ -28,6 +28,19 @@ class Settings(BaseSettings):
     # Seconds a detected top level is trusted before fr_rpt_geo_levels is read
     # again, so a rebuilt hierarchy is picked up without a restart.
     GEO_LEVELS_RECHECK_SECONDS: int = 300
+    # Service-to-service authentication of chart requests (app/core/auth.py).
+    # The Keycloak realm URL that issues the callers' tokens; unset or empty
+    # turns authentication off, which is only safe while the network keeps
+    # every other client out.
+    AUTH_ISSUER: str | None = None
+    # Where the realm's signing keys are published. Unset:
+    # <AUTH_ISSUER>/protocol/openid-connect/certs.
+    AUTH_JWKS_URL: str | None = None
+    # This service's Keycloak client, and the client role a caller must hold.
+    AUTH_AUDIENCE: str = "farmer-registry-dashboard-api"
+    AUTH_ROLE: str = "charts:read"
+    # Clock skew tolerated on exp/iat/nbf.
+    AUTH_LEEWAY_SECONDS: int = 30
 
 
 settings = Settings()

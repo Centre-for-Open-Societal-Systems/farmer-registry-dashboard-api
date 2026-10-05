@@ -13,6 +13,7 @@ endpoint per dashboard chart. Its only client is the OAN dashboards BFF, which c
 ```
 app/main.py               app, lifespan (asyncpg pool), CORS, /health
 app/core/config.py        settings (DATABASE_URL, ALLOWED_ORIGINS, GEO_LEVEL_TOTALS, …)
+app/core/auth.py          service-to-service token check on the chart routes (AUTH_ISSUER)
 app/core/geo.py           which geo_N column holds each dashboard level (region, zone, woreda, kebele)
 app/api/filters.py        ChartFilters + build_where_clause: the only place input becomes SQL
 app/api/routes/charts.py  chart handlers
@@ -49,6 +50,12 @@ docs/                     architecture, API reference, configuration, developmen
 - Every chart's keys are listed in `CONTRACT` in `tests/test_charts.py`. Keep that list and
   `docs/api-reference.md` in step with the code.
 - Cast aggregates in SQL (`::bigint`, `::float8`) so they serialise as numbers.
+
+### Authentication
+- Every chart route sits behind `require_caller` (a router dependency, listed before the database
+  one). Add new chart routes to `charts.router`, never straight to `app`.
+- `/health` stays open and must never return data.
+- Never accept HMAC algorithms or skip `iss`/`aud`/`exp` checks; see `tests/test_auth.py`.
 
 ### Privacy
 - Aggregates only: no names, IDs, contact details or coordinates in any response.

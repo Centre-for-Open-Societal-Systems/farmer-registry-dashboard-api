@@ -4,7 +4,8 @@ services:
     build: .
     container_name: farmer-registry-dashboard-api
     ports:
-      # Bound to localhost: the service has no authentication and must not be
+      # Bound to localhost: with AUTH_ISSUER unset the service has no
+      # authentication, and it must not be reachable from other hosts either way.
       # reachable from other hosts. Its only client is the dashboards BFF.
       - "127.0.0.1:8005:8000"
     environment:
@@ -14,4 +15,8 @@ services:
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       GEO_LEVEL_TOTALS: ${GEO_LEVEL_TOTALS:-{}}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-["http://localhost:3000"]}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-farmer-registry-dashboard-api}
+      AUTH_ROLE: ${AUTH_ROLE:-charts:read}
     restart: unless-stopped

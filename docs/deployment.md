@@ -30,12 +30,26 @@ the same Docker network and use the Postgres service name in `DATABASE_URL`.
 
 The service is stateless and fits a standard Deployment and Service pair:
 
-- **Service:** `ClusterIP` only. Do not create an Ingress, because the only client is the
-  dashboards BFF inside the cluster (see [Security](security.md)).
+- **Service:** `ClusterIP` only. Do not create a public Ingress: the only client is the
+  dashboards BFF (see [Security](security.md#network-exposure)).
 - **Probes:** a readiness and liveness probe on `GET /health`, port `8000`.
 - **Secrets:** `PGPASSWORD` from a Secret, `DATABASE_URL` without the password; `GEO_LEVEL_TOTALS` and `ALLOWED_ORIGINS` from a
   ConfigMap.
 - **Resources:** a starting point is `100m` / `256Mi` requested per replica. The work is I/O-bound.
+
+## Turning authentication on
+
+1. Create the Keycloak client and role, and grant the role to the dashboard's service account (see
+   [Configuration](configuration.md#keycloak-setup)). The farmer dashboard's deploy job does this when
+   its `dashboardApi.auth.enabled` is set.
+2. Set `AUTH_ISSUER` on this service to the realm URL the dashboard fetches its tokens from. In the
+   farmer registry chart: `dashboardApi.env.AUTH_ISSUER`. Set `AUTH_JWKS_URL` too if this service
+   reaches Keycloak by another address.
+3. Turn on client-credentials in the dashboard, then check its log: chart refreshes succeed, and
+   this service logs no `401` or `403`.
+
+Do steps 1 and 3 before or with step 2. In between, the dashboard serves its cached rows and logs
+failed refreshes.
 
 ## Sizing
 
@@ -76,6 +90,9 @@ per-request logs.
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
+| Every chart answers `401` | The caller sends no token, or a token from another issuer than `AUTH_ISSUER` (compare its `iss`: hostname, scheme and port must match) | Turn on client-credentials in the dashboard; align `AUTH_ISSUER` with the token endpoint it uses |
+| Every chart answers `403` | The caller's service account lacks `AUTH_ROLE` on `AUTH_AUDIENCE` | Grant the role ([Keycloak setup](configuration.md#keycloak-setup)) |
+| Every chart answers `503` | The service cannot fetch `AUTH_JWKS_URL` | Check DNS, network and TLS from the container to Keycloak, or point `AUTH_JWKS_URL` at an address it reaches |
 | Container restarts, and the log says `DATABASE_URL` is missing | Required setting absent | Set `DATABASE_URL` |
 | `/health` returns 500 or the container is `unhealthy` | Database unreachable, wrong credentials, or pool exhausted | Check network and DNS to Postgres, credentials, and `pg_stat_activity` |
 | A chart returns 500 with `relation "fr_rpt_farmer" does not exist` | The reporting views have not been created in this database | Run the registry's reporting-view seed and refresh |

@@ -17,6 +17,11 @@ Settings are read from environment variables, or from a `.env` file in the worki
 | `GEO_LEVEL_TOTALS` | no | `{}` | JSON object giving the national number of administrative units per level, used by `registryCoverage`. Keys: `regions`, `zones`, `woredas`, `kebeles`. A missing level is reported as `null` |
 | `GEO_TOP_LEVEL` | no | detected | Reporting-view position (`1` or `2`) of the region level. Normally leave it unset: the API reads `fr_rpt_geo_levels` and skips a country root. Set it only if the level names are unusual, for example a root that is not called `country` |
 | `GEO_LEVELS_RECHECK_SECONDS` | no | `300` | How long a detected level mapping is trusted before `fr_rpt_geo_levels` is read again. A registry that rebuilds its views with a different hierarchy is followed within this time, without a restart. Ignored when `GEO_TOP_LEVEL` is set |
+| `AUTH_ISSUER` | recommended | — | Keycloak realm URL that issues the callers' tokens, for example `https://keycloak.example.org/realms/farmer`. It must equal the tokens' `iss` exactly, which is the URL the caller fetched its token from. Unset or empty turns authentication **off** (see [Security](security.md#authentication)) |
+| `AUTH_JWKS_URL` | no | `<AUTH_ISSUER>/protocol/openid-connect/certs` | Where the realm's signing keys are fetched. Set it when this service reaches Keycloak by another address than the issuer's, for example its cluster-internal Service |
+| `AUTH_AUDIENCE` | no | `farmer-registry-dashboard-api` | This service's Keycloak client. Tokens must name it in `aud` |
+| `AUTH_ROLE` | no | `charts:read` | Client role on `AUTH_AUDIENCE` a caller must hold |
+| `AUTH_LEEWAY_SECONDS` | no | `30` | Clock skew tolerated when checking token times |
 | `PROJECT_NAME` | no | `Farmer Registry Dashboard API` | Title shown in the OpenAPI docs |
 
 Example `.env`:
@@ -25,6 +30,30 @@ Example `.env`:
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/farmer_registry_db
 ALLOWED_ORIGINS=["http://localhost:3000"]
 GEO_LEVEL_TOTALS={"woredas": 1138}
+```
+
+## Keycloak setup
+
+Authentication needs, in the registry's realm:
+
+1. **This service's client**, `AUTH_AUDIENCE`: confidential, with every flow off (it never signs
+   anyone in). It only holds the role.
+2. **Its client role** `AUTH_ROLE`.
+3. **That role on the caller's service account**: the dashboard's own client, with service accounts
+   enabled.
+
+Keycloak then puts `AUTH_AUDIENCE` in `aud` and the role in `resource_access` of the caller's
+client-credentials tokens by itself (the realm's default `roles` scope), so no mapper is needed.
+
+The farmer dashboard's deploy job creates all three when its dashboard-api authentication is on, so
+normally nothing is done by hand. Manually, with `kcadm.sh`:
+
+```bash
+kcadm.sh create clients -r farmer -s clientId=farmer-registry-dashboard-api -s publicClient=false \
+  -s standardFlowEnabled=false -s directAccessGrantsEnabled=false -s serviceAccountsEnabled=false
+kcadm.sh create clients/<id>/roles -r farmer -s name=charts:read
+kcadm.sh add-roles -r farmer --uusername service-account-farmer-registry-dashboard \
+  --cclientid farmer-registry-dashboard-api --rolename charts:read
 ```
 
 ## Database account

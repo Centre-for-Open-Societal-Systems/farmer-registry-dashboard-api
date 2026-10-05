@@ -6,6 +6,26 @@
 - **Methods and responses:** every endpoint is `GET` and returns `application/json`.
 - **OpenAPI:** the generated schema is at `/openapi.json`, with an interactive UI at `/docs`.
 
+## Authentication
+
+When the service runs with `AUTH_ISSUER` set, every `/api/v1/charts/*` request needs a bearer token:
+
+```
+Authorization: Bearer <access token>
+```
+
+The token is a Keycloak client-credentials token whose client holds the role `AUTH_ROLE` (default
+`charts:read`) on this service's client `AUTH_AUDIENCE` (default `farmer-registry-dashboard-api`).
+`GET /health` needs no token. For example:
+
+```bash
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=farmer-registry-dashboard \
+  -d client_secret="$CLIENT_SECRET" "$ISSUER/protocol/openid-connect/token" | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8005/api/v1/charts/farmerKpis
+```
+
+See [Security](security.md#authentication) for what is checked.
+
 ## Conventions
 
 ### Response shape
@@ -268,7 +288,10 @@ they keep the dashboard's batched requests stable.
 
 | Status | When | Body |
 | --- | --- | --- |
+| 401 | Authentication on, and the token is missing or invalid (`WWW-Authenticate` says why) | `{"detail": "..."}` |
+| 403 | Valid token without the required role | `{"detail": "Role <role> on <client> required"}` |
 | 404 | Unknown path | `{"detail": "Not Found"}` |
+| 503 | Authentication on, and the realm's signing keys cannot be fetched | `{"detail": "Token verification is unavailable"}` |
 | 500 | Database error or unreachable database | `Internal Server Error` |
 
 A filter value that matches nothing is not an error. The chart returns zero counts or `[]`.
