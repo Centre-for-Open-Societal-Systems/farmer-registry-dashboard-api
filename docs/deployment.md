@@ -42,9 +42,10 @@ The service is stateless and fits a standard Deployment and Service pair:
 1. Create the Keycloak client and role, and grant the role to the dashboard's service account (see
    [Configuration](configuration.md#keycloak-setup)). The farmer dashboard's deploy job does this when
    its `dashboardApi.auth.enabled` is set.
-2. Set `AUTH_ISSUER` on this service to the realm URL the dashboard fetches its tokens from. In the
-   farmer registry chart: `dashboardApi.env.AUTH_ISSUER`. Set `AUTH_JWKS_URL` too if this service
-   reaches Keycloak by another address.
+2. Set `AUTH_IAM_URL` on this service to the registry's IAM Service in the same namespace, for
+   example `http://commons-services-iam-staff-portal-api-pub`. Nothing else is environment-specific:
+   the trusted realms are read from IAM. In the registry chart, set it under the dashboard-api's
+   `env` values.
 3. Turn on client-credentials in the dashboard, then check its log: chart refreshes succeed, and
    this service logs no `401` or `403`.
 
@@ -90,9 +91,9 @@ per-request logs.
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
-| Every chart answers `401` | The caller sends no token, or a token from another issuer than `AUTH_ISSUER` (compare its `iss`: hostname, scheme and port must match) | Turn on client-credentials in the dashboard; align `AUTH_ISSUER` with the token endpoint it uses |
+| Every chart answers `401` | The caller sends no token, or its token's `iss` is not a trusted issuer: not a realm of IAM's login providers, nor in `AUTH_ISSUER` | Turn on client-credentials in the dashboard. Compare the token's `iss` with the issuers in IAM's `login_providers` |
 | Every chart answers `403` | The caller's service account lacks `AUTH_ROLE` on `AUTH_AUDIENCE` | Grant the role ([Keycloak setup](configuration.md#keycloak-setup)) |
-| Every chart answers `503` | The service cannot fetch `AUTH_JWKS_URL` | Check DNS, network and TLS from the container to Keycloak, or point `AUTH_JWKS_URL` at an address it reaches |
+| Every chart answers `503` | The service cannot read IAM (`AUTH_IAM_URL`) before it knows any issuer, or cannot fetch an issuer's signing keys | Check DNS, network and TLS from the container to IAM and to Keycloak. The log names which |
 | Container restarts, and the log says `DATABASE_URL` is missing | Required setting absent | Set `DATABASE_URL` |
 | `/health` returns 500 or the container is `unhealthy` | Database unreachable, wrong credentials, or pool exhausted | Check network and DNS to Postgres, credentials, and `pg_stat_activity` |
 | A chart returns 500 with `relation "fr_rpt_farmer" does not exist` | The reporting views have not been created in this database | Run the registry's reporting-view seed and refresh |

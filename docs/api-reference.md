@@ -8,7 +8,7 @@
 
 ## Authentication
 
-When the service runs with `AUTH_ISSUER` set, every `/api/v1/charts/*` request needs a bearer token:
+When the service runs with authentication on (`AUTH_IAM_URL` or `AUTH_ISSUER` set), every `/api/v1/charts/*` request needs a bearer token:
 
 ```
 Authorization: Bearer <access token>

@@ -64,6 +64,7 @@ def published(monkeypatch):
         return answer["value"]
 
     monkeypatch.setattr(settings, "AUTH_ISSUER", ISSUER + "/")  # trailing slash is tolerated
+    monkeypatch.setattr(settings, "AUTH_IAM_URL", "")
     monkeypatch.setattr(settings, "AUTH_AUDIENCE", AUDIENCE)
     monkeypatch.setattr(settings, "AUTH_ROLE", ROLE)
     monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", fetch_data)
@@ -88,6 +89,7 @@ async def call(path="/probe", bearer: str | None = None, target=probe) -> httpx.
 
 async def test_off_without_issuer(monkeypatch):
     monkeypatch.setattr(settings, "AUTH_ISSUER", "")
+    monkeypatch.setattr(settings, "AUTH_IAM_URL", "")
     auth.reset()
     try:
         res = await call()
@@ -217,3 +219,134 @@ async def test_chart_with_valid_token(published, client):
     res = await client.get("/api/v1/charts/farmerKpis", headers={"Authorization": f"Bearer {token()}"})
     assert res.status_code == 200
     assert res.json()[0]["total_farmers"] == 3
+
+
+# --- Trusted issuers from the registry's IAM (AUTH_IAM_URL) -------------------
+
+IAM = "http://iam.test"
+REALM_PUBLIC = "https://keycloak-development.example.org/realms/staff"
+REALM_PRIVATE = "https://keycloak.far.example.test/realms/staff"
+EVIL = "https://evil.example.org/realms/staff"
+
+
+def authorize_url(realm: str) -> str:
+    return f"{realm}/protocol/openid-connect/auth?response_type=code&client_id=staff-portal"
+
+
+@pytest.fixture
+def iam(monkeypatch):
+    """Authentication on through AUTH_IAM_URL, with a scripted IAM.
+
+    Returns the IAM's state: `providers` (id -> authorization URL, or an
+    exception to raise), `down` (every call fails), `calls` and `fetched`
+    (the JWKS URLs keys were fetched from).
+    """
+    state = {"providers": {1: authorize_url(REALM_PRIVATE), 2: authorize_url(REALM_PUBLIC)}, "down": False}
+    state["calls"], state["fetched"] = [], []
+
+    def http_json(method, url):
+        state["calls"].append((method, url))
+        if state["down"]:
+            raise OSError("connection refused")
+        if url == f"{IAM}/auth/get_login_providers":
+            return {"loginProviders": [{"id": i} for i in state["providers"]]}
+        provider = int(url.split("id=")[1].split("&")[0])
+        answer = state["providers"][provider]
+        if isinstance(answer, Exception):
+            raise answer
+        return {"redirectUrl": answer}
+
+    def fetch_data(client):
+        state["fetched"].append(client.uri)
+        return jwks()
+
+    monkeypatch.setattr(settings, "AUTH_ISSUER", "")
+    monkeypatch.setattr(settings, "AUTH_IAM_URL", IAM + "/")
+    monkeypatch.setattr(settings, "AUTH_AUDIENCE", AUDIENCE)
+    monkeypatch.setattr(settings, "AUTH_ROLE", ROLE)
+    monkeypatch.setattr(auth, "_http_json", http_json)
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", fetch_data)
+    auth.reset()
+    yield state
+    auth.reset()
+
+
+def test_realm_of_reads_keycloak_authorization_urls():
+    assert auth.realm_of(authorize_url(REALM_PUBLIC)) == REALM_PUBLIC
+    assert auth.realm_of("https://kc.example.org/auth/realms/x/protocol/openid-connect/auth") == (
+        "https://kc.example.org/auth/realms/x"
+    )
+    assert auth.realm_of("https://idp.example.org/oauth2/authorize") is None
+
+
+async def test_iam_realms_are_trusted(iam):
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+    assert (await call(bearer=token(iss=REALM_PRIVATE))).status_code == 200
+    assert iam["fetched"] == [
+        f"{REALM_PUBLIC}/protocol/openid-connect/certs",
+        f"{REALM_PRIVATE}/protocol/openid-connect/certs",
+    ]
+    # One sign-in started per provider, once.
+    assert sum(1 for m, _ in iam["calls"] if m == "POST") == 2
+
+
+async def test_untrusted_issuer_is_401_and_its_keys_are_never_fetched(iam):
+    res = await call(bearer=token(iss=EVIL))
+    assert res.status_code == 401
+    assert "Untrusted issuer" in res.headers["www-authenticate"]
+    assert not any(url.startswith(EVIL) for url in iam["fetched"])
+
+
+async def test_a_broken_provider_does_not_hide_the_others(iam):
+    iam["providers"][3] = OSError("timeout")
+    iam["providers"][4] = "https://idp.example.org/oauth2/authorize"  # not Keycloak
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+
+
+async def test_iam_down_is_503_then_recovers(iam, monkeypatch):
+    iam["down"] = True
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 503
+    # Within the retry interval IAM is not asked again.
+    calls = len(iam["calls"])
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 503
+    assert len(iam["calls"]) == calls
+    iam["down"] = False
+    monkeypatch.setattr(auth, "IAM_RETRY_SECONDS", -1)
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+
+
+async def test_a_new_provider_is_picked_up_on_a_miss(iam, monkeypatch):
+    del iam["providers"][2]
+    assert (await call(bearer=token(iss=REALM_PRIVATE))).status_code == 200
+    iam["providers"][2] = authorize_url(REALM_PUBLIC)
+    # Read moments ago: a miss does not re-read IAM yet.
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 401
+    monkeypatch.setattr(auth, "IAM_MISS_REFRESH_SECONDS", -1)
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+
+
+async def test_last_list_is_kept_while_iam_is_down(iam, monkeypatch):
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+    iam["down"] = True
+    monkeypatch.setattr(settings, "AUTH_IAM_REFRESH_SECONDS", 0)
+    auth.get_verifier().issuers.refresh_seconds = -1
+    monkeypatch.setattr(auth, "IAM_MISS_REFRESH_SECONDS", -1)
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+
+
+async def test_explicit_issuer_and_iam_combine(iam, monkeypatch):
+    monkeypatch.setattr(settings, "AUTH_ISSUER", ISSUER)
+    auth.reset()
+    assert (await call(bearer=token(iss=ISSUER))).status_code == 200
+    assert (await call(bearer=token(iss=REALM_PUBLIC))).status_code == 200
+
+
+def test_jwks_override_needs_a_single_issuer(monkeypatch):
+    monkeypatch.setattr(settings, "AUTH_ISSUER", f"{ISSUER},{REALM_PUBLIC}")
+    monkeypatch.setattr(settings, "AUTH_JWKS_URL", "http://keys.test/certs")
+    auth.reset()
+    try:
+        with pytest.raises(ValueError):
+            auth.get_verifier()
+    finally:
+        auth.reset()

@@ -17,10 +17,16 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     verifier = get_verifier()
     if verifier is None:
-        log.warning("AUTH_ISSUER is not set: chart requests are not authenticated. Keep this service private.")
+        log.warning(
+            "Neither AUTH_IAM_URL nor AUTH_ISSUER is set: chart requests are not authenticated. "
+            "Keep this service private."
+        )
     else:
         log.info(
-            "chart requests need a token from %s with role %s on %s", verifier.issuer, verifier.role, verifier.audience
+            "chart requests need a token from %s with role %s on %s",
+            verifier.issuers.describe(),
+            verifier.role,
+            verifier.audience,
         )
     # Initialize the database pool
     app.state.pool = await asyncpg.create_pool(

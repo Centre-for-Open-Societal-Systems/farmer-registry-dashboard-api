@@ -13,7 +13,7 @@ endpoint per dashboard chart. Its only client is the OAN dashboards BFF, which c
 ```
 app/main.py               app, lifespan (asyncpg pool), CORS, /health
 app/core/config.py        settings (DATABASE_URL, ALLOWED_ORIGINS, GEO_LEVEL_TOTALS, …)
-app/core/auth.py          service-to-service token check on the chart routes (AUTH_ISSUER)
+app/core/auth.py          service-to-service token check on the chart routes (AUTH_IAM_URL / AUTH_ISSUER)
 app/core/geo.py           which geo_N column holds each dashboard level (region, zone, woreda, kebele)
 app/api/filters.py        ChartFilters + build_where_clause: the only place input becomes SQL
 app/api/routes/charts.py  chart handlers

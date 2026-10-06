@@ -30,16 +30,34 @@ The service publishes **aggregate statistics** about a register of people. The r
 The only client is the dashboards BFF, a server. It authenticates as itself, never as a user: it
 caches chart rows across users and refreshes them in the background, when no user is present.
 
-With `AUTH_ISSUER` set, every chart request needs an OAuth 2.0 access token from the registry's
-Keycloak realm, obtained by the BFF with the **client-credentials grant** for its own client
+With authentication on, every chart request needs an OAuth 2.0 access token from the registry's
+Keycloak, obtained by the BFF with the **client-credentials grant** for its own client
 (`app/core/auth.py`). A token is accepted only when it:
 
-1. is signed by a key the realm publishes (JWKS), with an asymmetric algorithm. HMAC algorithms are
-   refused, so a token "signed" with the public key does not verify;
-2. has not expired (`AUTH_LEEWAY_SECONDS` of clock skew are allowed);
-3. was issued by exactly `AUTH_ISSUER`;
+1. names a **trusted issuer** in `iss` (below);
+2. is signed by a key that issuer publishes (JWKS), with an asymmetric algorithm. HMAC algorithms
+   are refused, so a token "signed" with the public key does not verify;
+3. has not expired (`AUTH_LEEWAY_SECONDS` of clock skew are allowed);
 4. names this service's Keycloak client, `AUTH_AUDIENCE`, in `aud`;
 5. carries the client role `AUTH_ROLE` on that client (`resource_access`).
+
+**Trusted issuers.**
+
+- **`AUTH_IAM_URL`** (the normal case): the registry's IAM, usually its in-namespace Service. Every
+  Keycloak realm one of IAM's login providers signs staff in with is trusted. The dashboard gets its
+  token from one of those realms too, so no environment URL is configured on either side.
+  - The list is read at the first chart request, again every `AUTH_IAM_REFRESH_SECONDS`, and early
+    (at most once a minute) when a token names an issuer not on it, so a new provider is followed.
+  - IAM's API names a provider's realm only in the authorization URL it returns when a sign-in
+    starts, so one sign-in is started per provider. This is exactly what a browser opening the login
+    page does, and it leaves only a short-lived transaction in IAM.
+  - If IAM cannot be read, the last list is kept. Before any list is known, requests get `503`.
+- **`AUTH_ISSUER`**: explicit realm URLs, comma-separated, for a deployment without IAM. Each must
+  equal the tokens' `iss` exactly: scheme, host, port and path.
+
+Keys are fetched only from a trusted issuer's JWKS address (`<issuer>/protocol/openid-connect/certs`,
+or `AUTH_JWKS_URL` for a single explicit issuer), never from a URL the token supplies. A token naming
+any other issuer is refused before any key is fetched.
 
 Access is therefore granted in Keycloak, by giving the role to a caller's service account, and
 withdrawn by removing it. A token for any other client of the realm, including a staff user's
@@ -48,9 +66,9 @@ token, is refused.
 | Answer | When |
 | --- | --- |
 | `401` with `WWW-Authenticate: Bearer` | No token, or not a bearer token |
-| `401` with `error="invalid_token"` | Bad signature, unknown key, expired, wrong issuer or audience |
+| `401` with `error="invalid_token"` | Untrusted issuer, bad signature, unknown key, expired, or wrong audience |
 | `403` with `error="insufficient_scope"` | Valid token without `AUTH_ROLE` |
-| `503` | The realm's signing keys cannot be fetched |
+| `503` | The trusted issuers (IAM) or the realm's signing keys cannot be fetched |
 
 Authentication runs before anything else on the chart routes, so a rejected request never reaches
 the database. `GET /health` stays open for probes; it reveals only that the service is up.
@@ -58,7 +76,8 @@ the database. `GET /health` stays open for probes; it reveals only that the serv
 The signing keys are cached for five minutes. A token with a key id the cache does not hold
 triggers one refetch, so Keycloak key rotation needs no restart.
 
-Without `AUTH_ISSUER`, authentication is **off** and every request is accepted. The service logs a
+With neither `AUTH_IAM_URL` nor `AUTH_ISSUER` set, authentication is **off** and every request is
+accepted. The service logs a
 warning at start-up. That is acceptable only while the network alone keeps other clients out.
 
 ### Network exposure
