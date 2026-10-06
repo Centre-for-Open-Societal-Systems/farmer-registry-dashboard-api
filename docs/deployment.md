@@ -30,12 +30,27 @@ the same Docker network and use the Postgres service name in `DATABASE_URL`.
 
 The service is stateless and fits a standard Deployment and Service pair:
 
-- **Service:** `ClusterIP` only. Do not create an Ingress, because the only client is the
-  dashboards BFF inside the cluster (see [Security](security.md)).
+- **Service:** `ClusterIP` only. Do not create a public Ingress: the only client is the
+  dashboards BFF (see [Security](security.md#network-exposure)).
 - **Probes:** a readiness and liveness probe on `GET /health`, port `8000`.
 - **Secrets:** `PGPASSWORD` from a Secret, `DATABASE_URL` without the password; `GEO_LEVEL_TOTALS` and `ALLOWED_ORIGINS` from a
   ConfigMap.
 - **Resources:** a starting point is `100m` / `256Mi` requested per replica. The work is I/O-bound.
+
+## Turning authentication on
+
+1. Create the Keycloak client and role, and grant the role to the dashboard's service account (see
+   [Configuration](configuration.md#keycloak-setup)). The farmer dashboard's deploy job does this when
+   its `dashboardApi.auth.enabled` is set.
+2. Set `AUTH_IAM_URL` on this service to the registry's IAM Service in the same namespace, for
+   example `http://commons-services-iam-staff-portal-api-pub`. Nothing else is environment-specific:
+   the trusted realms are read from IAM. In the registry chart, set it under the dashboard-api's
+   `env` values.
+3. Turn on client-credentials in the dashboard, then check its log: chart refreshes succeed, and
+   this service logs no `401` or `403`.
+
+Do steps 1 and 3 before or with step 2. In between, the dashboard serves its cached rows and logs
+failed refreshes.
 
 ## Sizing
 
@@ -76,6 +91,9 @@ per-request logs.
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
+| Every chart answers `401` | The caller sends no token, or its token's `iss` is not a trusted issuer: not a realm of IAM's login providers, nor in `AUTH_ISSUER` | Turn on client-credentials in the dashboard. Compare the token's `iss` with the issuers in IAM's `login_providers` |
+| Every chart answers `403` | The caller's service account lacks `AUTH_ROLE` on `AUTH_AUDIENCE` | Grant the role ([Keycloak setup](configuration.md#keycloak-setup)) |
+| Every chart answers `503` | The service cannot read IAM (`AUTH_IAM_URL`) before it knows any issuer, or cannot fetch an issuer's signing keys | Check DNS, network and TLS from the container to IAM and to Keycloak. The log names which |
 | Container restarts, and the log says `DATABASE_URL` is missing | Required setting absent | Set `DATABASE_URL` |
 | `/health` returns 500 or the container is `unhealthy` | Database unreachable, wrong credentials, or pool exhausted | Check network and DNS to Postgres, credentials, and `pg_stat_activity` |
 | A chart returns 500 with `relation "fr_rpt_farmer" does not exist` | The reporting views have not been created in this database | Run the registry's reporting-view seed and refresh |
