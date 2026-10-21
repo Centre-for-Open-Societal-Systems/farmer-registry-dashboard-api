@@ -1,3 +1,9 @@
+> Authentication is required by default. The owning registry Helm chart supplies
+> `AUTH_ENABLED=true` and `AUTH_IAM_URL` (or `AUTH_ISSUER`). Missing trust stops startup;
+> requests also fail closed if configuration is invalid. `AUTH_ENABLED=false` is an
+> explicit opt-out for isolated local development only, never for a registry deployment.
+> Build, deployment and environment configuration belong to the owning registry CI/Helm.
+
 # Configuration
 
 Never commit real values: `.env` is git-ignored, `.env.example` holds placeholders only, and deployed
@@ -17,7 +23,8 @@ Settings are read from environment variables, or from a `.env` file in the worki
 | `GEO_LEVEL_TOTALS` | no | `{}` | JSON object giving the national number of administrative units per level, used by `registryCoverage`. Keys: `regions`, `zones`, `woredas`, `kebeles`. A missing level is reported as `null` |
 | `GEO_TOP_LEVEL` | no | detected | Reporting-view position (`1` or `2`) of the region level. Normally leave it unset: the API reads `fr_rpt_geo_levels` and skips a country root. Set it only if the level names are unusual, for example a root that is not called `country` |
 | `GEO_LEVELS_RECHECK_SECONDS` | no | `300` | How long a detected level mapping is trusted before `fr_rpt_geo_levels` is read again. A registry that rebuilds its views with a different hierarchy is followed within this time, without a restart. Ignored when `GEO_TOP_LEVEL` is set |
-| `AUTH_IAM_URL` | recommended | — | Base URL of the registry's IAM, normally its in-namespace Service, for example `http://commons-services-iam-staff-portal-api-pub`. Every Keycloak realm IAM's login providers sign staff in with becomes a trusted token issuer. With `AUTH_ISSUER` also unset, authentication is **off** (see [Security](security.md#authentication)) |
+| `AUTH_ENABLED` | no | `true` | Require authentication; false is isolated local development only |
+| `AUTH_IAM_URL` | recommended | — | Base URL of the registry's IAM, normally its in-namespace Service, for example `http://commons-services-iam-staff-portal-api-pub`. Every Keycloak realm IAM's login providers sign staff in with becomes a trusted token issuer. With `AUTH_ISSUER` also unset and auth enabled, startup fails closed (see [Security](security.md#authentication)) |
 | `AUTH_ISSUER` | no | — | Explicit trusted issuers: Keycloak realm URLs, comma-separated, for example `https://keycloak.example.org/realms/staff`. Each must equal the tokens' `iss` exactly. Combines with `AUTH_IAM_URL` |
 | `AUTH_IAM_REFRESH_SECONDS` | no | `600` | How often IAM's login providers are read again. A token from an unknown issuer also triggers a re-read, at most once a minute |
 | `AUTH_JWKS_URL` | no | `<issuer>/protocol/openid-connect/certs` | Signing keys for a single `AUTH_ISSUER`, when this service reaches Keycloak by another address than the issuer's |

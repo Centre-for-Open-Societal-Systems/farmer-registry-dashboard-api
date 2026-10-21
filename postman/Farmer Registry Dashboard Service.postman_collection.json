@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "145295f6-e02d-4233-8274-aee84c8bac8f",
     "name": "Farmer Registry Dashboard Service",
-    "description": "Read-only aggregate API of the farmer registry, used by the OAN dashboards.\n\n- Every chart: `GET {{baseUrl}}/api/v1/charts/<chartId>` returns a JSON array of rows.\n- Filters (all optional, combined with AND) are included on each request but disabled; enable the ones you need. `all` or omitted means no filter.\n  - `region`, `zone`, `woreda`, `kebele`: administrative unit codes for levels 1-4, bare (`ET04`) or full level id (`region-ET04`).\n  - `farmingType`: farming type, case-insensitive (`crop`, `livestock`, `mixed`, ...).\n  - `recordState`: record status, case-insensitive. Without it, only ACTIVE records are counted (except `farmersByRecordState`).\n- Categorical values are registry codes (FEMALE, UNDER_25, OWNER, ...).\n- The collection-level test checks status 200 and the exact response keys per chart.\n\nSet `baseUrl` (collection variable, or the environment) to the service URL. The service has no authentication and is meant to be reachable on the private network only.",
+    "description": "Read-only aggregate API of the farmer registry, used by the OAN dashboards.\n\n- Every chart: `GET {{baseUrl}}/api/v1/charts/<chartId>` returns a JSON array of rows.\n- Filters (all optional, combined with AND) are included on each request but disabled; enable the ones you need. `all` or omitted means no filter.\n  - `region`, `zone`, `woreda`, `kebele`: administrative unit codes for levels 1-4, bare (`ET04`) or full level id (`region-ET04`).\n  - `farmingType`: farming type, case-insensitive (`crop`, `livestock`, `mixed`, ...).\n  - `recordState`: record status, case-insensitive. Without it, only ACTIVE records are counted (except `farmersByRecordState`).\n- Categorical values are registry codes (FEMALE, UNDER_25, OWNER, ...).\n- The collection-level test checks status 200 and the exact response keys per chart.\n\nSet `baseUrl` (collection variable, or the environment) to the service URL. Authentication is required by default; the service is intended for private-network callers.\n\nAuthentication is required by default. Set accessToken to a service-account token with this API audience and charts:read role. Keep token values in a local/secret environment, never in this file. /health stays public. AUTH_ENABLED=false is isolated local development only.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "49316197",
     "_collection_link": "https://go.postman.co/collection/49316197-145295f6-e02d-4233-8274-aee84c8bac8f?source=collection_link"
@@ -22,7 +22,10 @@
             "health"
           ]
         },
-        "description": "Liveness and database connectivity (runs SELECT 1)."
+        "description": "Liveness and database connectivity (runs SELECT 1).",
+        "auth": {
+          "type": "noauth"
+        }
       },
       "response": [
         {
@@ -1280,6 +1283,21 @@
       "key": "baseUrl",
       "value": "http://localhost:8005",
       "description": "Base URL of the dashboard service."
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  }
 }

@@ -15,6 +15,7 @@ services:
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       GEO_LEVEL_TOTALS: ${GEO_LEVEL_TOTALS:-{}}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-["http://localhost:3000"]}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
       AUTH_IAM_URL: ${AUTH_IAM_URL:-}
       AUTH_ISSUER: ${AUTH_ISSUER:-}
       AUTH_JWKS_URL: ${AUTH_JWKS_URL:-}
