@@ -1,3 +1,9 @@
+> Authentication is required by default. The owning registry Helm chart supplies
+> `AUTH_ENABLED=true` and `AUTH_IAM_URL` (or `AUTH_ISSUER`). Missing trust stops startup;
+> requests also fail closed if configuration is invalid. `AUTH_ENABLED=false` is an
+> explicit opt-out for isolated local development only, never for a registry deployment.
+> Build, deployment and environment configuration belong to the owning registry CI/Helm.
+
 # Deployment and operations
 
 ## Container image
@@ -30,12 +36,26 @@ the same Docker network and use the Postgres service name in `DATABASE_URL`.
 
 The service is stateless and fits a standard Deployment and Service pair:
 
-- **Service:** `ClusterIP` only. Do not create an Ingress, because the only client is the
-  dashboards BFF inside the cluster (see [Security](security.md)).
+- **Service:** `ClusterIP` only. Do not create a public Ingress: the only client is the
+  dashboards BFF (see [Security](security.md#network-exposure)).
 - **Probes:** a readiness and liveness probe on `GET /health`, port `8000`.
 - **Secrets:** `PGPASSWORD` from a Secret, `DATABASE_URL` without the password; `GEO_LEVEL_TOTALS` and `ALLOWED_ORIGINS` from a
   ConfigMap.
 - **Resources:** a starting point is `100m` / `256Mi` requested per replica. The work is I/O-bound.
+
+## Authentication rollout
+
+The owning registry pipeline builds this image together with its dashboard UI.
+Registry Helm owns `dashboardApi.auth`: enable it and configure a trusted issuer
+or IAM URL there. The template emits AUTH_ENABLED, AUTH_ISSUER/AUTH_IAM_URL,
+AUTH_AUDIENCE and AUTH_ROLE; reserved auth settings must not also be placed in
+`dashboardApi.env`. Missing trust fails closed. AUTH_ENABLED=false is local only.
+
+The registry-owned UI Helm chart provisions the service client/role and IAM tile,
+then checks anonymous/invalid-token 401 responses and real authenticated charts.
+The browser still requires its own IAM session and viewer role. Do not promote
+an older API image that ignores these settings, or disable staging/ownership gates
+to make a rollout pass. No secret value belongs in an image or committed values.
 
 ## Sizing
 
@@ -76,6 +96,9 @@ per-request logs.
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
+| Every chart answers `401` | The caller sends no token, or its token's `iss` is not a trusted issuer: not a realm of IAM's login providers, nor in `AUTH_ISSUER` | Turn on client-credentials in the dashboard. Compare the token's `iss` with the issuers in IAM's `login_providers` |
+| Every chart answers `403` | The caller's service account lacks `AUTH_ROLE` on `AUTH_AUDIENCE` | Grant the role ([Keycloak setup](configuration.md#keycloak-setup)) |
+| Every chart answers `503` | The service cannot read IAM (`AUTH_IAM_URL`) before it knows any issuer, or cannot fetch an issuer's signing keys | Check DNS, network and TLS from the container to IAM and to Keycloak. The log names which |
 | Container restarts, and the log says `DATABASE_URL` is missing | Required setting absent | Set `DATABASE_URL` |
 | `/health` returns 500 or the container is `unhealthy` | Database unreachable, wrong credentials, or pool exhausted | Check network and DNS to Postgres, credentials, and `pg_stat_activity` |
 | A chart returns 500 with `relation "fr_rpt_farmer" does not exist` | The reporting views have not been created in this database | Run the registry's reporting-view seed and refresh |
