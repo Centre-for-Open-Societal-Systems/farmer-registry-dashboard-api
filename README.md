@@ -71,3 +71,9 @@ and `recordState`. See the [API reference](docs/api-reference.md) for the full c
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Continuous validation
+
+See [ci/README.md](ci/README.md) for isolated PostgreSQL contract/auth tests,
+GitHub checks and the validation-only Jenkins entry. Image publication and
+deployment remain owned by the Farmer registry.
